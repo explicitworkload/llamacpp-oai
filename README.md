@@ -1,10 +1,12 @@
 # llamacpp-oai
 
-Deploy [llama.cpp](https://github.com/ggml-org/llama.cpp) as an OpenAI-compatible inference server on OpenShift AI using KServe.
+> **Branch: `experiment/lemonade-rocm`** — This is an experimental branch exploring [Lemonade](https://github.com/lemonade-sdk/lemonade) as an alternative backend to llama.cpp. The `main` branch contains the original llama.cpp-based deployment.
+
+Deploy Lemonade as an OpenAI-compatible inference server on OpenShift AI using KServe.
 
 ## Overview
 
-This project provides a container image and KServe manifests to serve GGUF models via llama.cpp on OpenShift AI with AMD GPU acceleration (ROCm). The entrypoint automatically discovers a `.gguf` model file from the KServe model mount path and starts `llama-server` with an OpenAI-compatible API on port 8080.
+This project provides a container image and KServe manifests to serve GGUF models via Lemonade on OpenShift AI with AMD GPU acceleration (Vulkan). The entrypoint automatically discovers a `.gguf` model file from the KServe model mount path, registers it with the InferenceService name as an alias, and starts `lemond` with an OpenAI-compatible API on port 8080.
 
 ## Prerequisites
 
@@ -16,17 +18,17 @@ This project provides a container image and KServe manifests to serve GGUF model
 ## Project Structure
 
 ```
-Dockerfile              # Container image based on llama.cpp full-vulkan
-entrypoint.sh           # Auto-discovers and launches the GGUF model
-servingruntime.yaml     # KServe ServingRuntime for llama.cpp
+Dockerfile              # Container image based on lemonade-server
+entrypoint.sh           # Auto-discovers GGUF model, registers KServe alias, starts lemond
+servingruntime.yaml     # KServe ServingRuntime for Lemonade
 inferenceservice.yaml   # KServe InferenceService example
 ```
 
 ## Building the Image
 
 ```bash
-podman build -t quay.io/<your-user>/llamacpp:latest .
-podman push quay.io/<your-user>/llamacpp:latest
+podman build -t quay.io/<your-user>/llamacpp:experiment_lemonade-rocm .
+podman push quay.io/<your-user>/llamacpp:experiment_lemonade-rocm
 ```
 
 ## Deploying on OpenShift AI
@@ -38,8 +40,6 @@ Update the `namespace` and `image` fields in [servingruntime.yaml](servingruntim
 ```bash
 oc apply -f servingruntime.yaml
 ```
-
-This registers a `llamacpp` runtime that supports the `gguf` model format with AMD GPU acceleration.
 
 ### 2. Create the InferenceService
 
@@ -55,7 +55,7 @@ Once the inference service is ready:
 
 ```bash
 # Get the inference endpoint
-URL=$(oc get inferenceservice llamacpp -o jsonpath='{.status.url}')
+URL=$(oc get inferenceservice llamalemonade -o jsonpath='{.status.url}')
 
 # List available models
 curl $URL/v1/models
@@ -64,16 +64,25 @@ curl $URL/v1/models
 curl $URL/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "default",
+    "model": "llamalemonade",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
 
 ## Configuration
 
-### ROCm Environment Variables
+### Lemonade Config
 
-The Dockerfile sets the following defaults, which can be overridden at deploy time:
+The Dockerfile bakes in `/opt/lemonade/.config/lemonade/config.json` with:
+
+| Setting | Value | Description |
+|---|---|---|
+| `llamacpp.backend` | `vulkan` | GPU backend for llama.cpp |
+| `extra_models_dir` | `/mnt/models` | Directory scanned for GGUF models (KServe mount path) |
+
+### Environment Variables
+
+The Dockerfile sets the following defaults for ROCm compatibility, which can be overridden at deploy time:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -81,13 +90,13 @@ The Dockerfile sets the following defaults, which can be overridden at deploy ti
 | `HSA_ENABLE_SDMA` | `0` | Disable SDMA (required for some iGPUs) |
 | `HIP_VISIBLE_DEVICES` | `0` | GPU device index to use |
 
-### llama-server Arguments
+### KServe Model Name Alias
 
-Additional arguments can be passed to `llama-server` via the container command in [servingruntime.yaml](servingruntime.yaml). Common options:
+The entrypoint automatically registers the GGUF model under the InferenceService name (derived from the pod hostname). This allows the OpenShift AI playground and KServe clients to reference the model by InferenceService name without needing to know the GGUF filename.
 
-| Flag | Description |
-|---|---|
-| `-ngl <N>` | Number of layers to offload to GPU |
-| `-fa off` | Disable flash attention (needed for some iGPUs) |
-| `--device ROCm0` | Select the ROCm device |
-| `-c <N>` | Context size |
+## Branches
+
+| Branch | Backend | Description |
+|---|---|---|
+| `main` | llama.cpp (Vulkan) | Original llama.cpp deployment |
+| `experiment/lemonade-rocm` | Lemonade (Vulkan) | Lemonade-based deployment with Vulkan GPU acceleration |
