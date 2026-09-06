@@ -12,7 +12,7 @@ USER 10001
 RUN ./lemond --host 127.0.0.1 & \
     until curl -sf http://127.0.0.1:13305/live > /dev/null 2>&1; do sleep 1; done && \
     ./lemonade backends install llamacpp:vulkan && \
-    kill %1
+    kill %1 || true
 USER root
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
