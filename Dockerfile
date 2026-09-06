@@ -2,8 +2,11 @@ FROM ghcr.io/ggml-org/llama.cpp:server
 
 WORKDIR /models
 
+# Include /app in library search path for dynamic dependencies (.so files)
+ENV LD_LIBRARY_PATH=/app:${LD_LIBRARY_PATH}
+
 USER root
-# Symlink or copy to standard PATH
+# Symlink binary to standard PATH
 RUN ln -s /app/llama-server /usr/local/bin/llama-server && \
     chown -R 1001:0 /models && \
     chmod -R g+rwX /models
