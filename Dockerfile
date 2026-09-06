@@ -1,24 +1,21 @@
-FROM ghcr.io/ggml-org/llama.cpp:full-vulkan
-
-WORKDIR /models
-
-# Default ROCm runtime environment variables (overridable by OpenShift UI)
-ENV HSA_OVERRIDE_GFX_VERSION=11.5.0 \
-    HSA_ENABLE_SDMA=0 \
-    HIP_VISIBLE_DEVICES=0 \
-    ROCM_PATH=/opt/rocm \
-    LD_LIBRARY_PATH=/app:${LD_LIBRARY_PATH}
+FROM ghcr.io/lemonade-sdk/lemonade-server:latest
 
 USER root
 
-# Setup PATH and entrypoint permissions
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN ln -s /app/llama-server /usr/local/bin/llama-server && \
-    chmod +x /usr/local/bin/entrypoint.sh && \
-    chown -R 1001:0 /models /usr/local/bin/entrypoint.sh && \
-    chmod -R g+rwX /models
+# Configure ROCm backend for llamacpp
+RUN mkdir -p /opt/lemonade/.config/lemonade && \
+    echo '{"llamacpp": {"backend": "rocm"}}' > /opt/lemonade/.config/lemonade/config.json && \
+    chown -R 10001:0 /opt/lemonade/.config/lemonade
 
-USER 1001
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    chown 10001:0 /usr/local/bin/entrypoint.sh
+
+USER 10001
+
+ENV HSA_OVERRIDE_GFX_VERSION=11.5.0 \
+    HSA_ENABLE_SDMA=0 \
+    HIP_VISIBLE_DEVICES=0
 
 EXPOSE 8080
 

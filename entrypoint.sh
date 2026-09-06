@@ -1,7 +1,6 @@
 #!/usr/bin/sh
 set -e
 
-# Find the first GGUF model in the mounted directory
 MODEL_FILE=$(find /mnt/models -type f -name "*.gguf" | head -n 1)
 
 if [ -z "$MODEL_FILE" ]; then
@@ -9,7 +8,24 @@ if [ -z "$MODEL_FILE" ]; then
   exit 1
 fi
 
-echo "Starting llama-server with model: $MODEL_FILE"
+echo "Starting lemonade server with model: $MODEL_FILE"
 
-# "$@" passes through custom runtime arguments configured in the OpenShift AI UI
-exec llama-server -m "$MODEL_FILE" --host 0.0.0.0 --port 8080 --alias default "$@"
+# Start lemond in background on port 8080
+./lemond --host 0.0.0.0 --port 8080 &
+LEMOND_PID=$!
+
+# Wait for server to be ready
+until curl -sf http://localhost:8080/live > /dev/null 2>&1; do
+  sleep 1
+done
+
+# Load the GGUF model with ROCm backend
+curl -sf -X POST http://localhost:8080/v1/load \
+  -H "Content-Type: application/json" \
+  -d "{\"model_path\": \"$MODEL_FILE\", \"llamacpp_backend\": \"rocm\"}" || {
+  echo "WARNING: Model load via API failed, server may still accept requests"
+}
+
+echo "Lemonade server ready on port 8080"
+
+wait $LEMOND_PID
