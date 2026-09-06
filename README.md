@@ -92,3 +92,10 @@ Additional arguments can be passed to `llama-server` via the container command i
 | `-ngl <N>` | Number of layers to offload to GPU |
 | `-fa off` | Disable flash attention (needed for some iGPUs) |
 | `-c <N>` | Context size |
+
+## Branches
+
+| Branch | Backend | Description |
+|---|---|---|
+| `main` | llama.cpp (Vulkan) | Original llama.cpp deployment |
+| `experiment/lemonade-rocm` | Lemonade (Vulkan) | Lemonade-based deployment with Vulkan GPU acceleration |
