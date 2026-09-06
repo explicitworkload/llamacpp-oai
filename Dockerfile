@@ -1,4 +1,4 @@
-FROM ghcr.io/ggml-org/llama.cpp:server
+FROM ghcr.io/ggml-org/llama.cpp:full-rocm
 
 WORKDIR /models
 
