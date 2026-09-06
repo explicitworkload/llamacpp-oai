@@ -8,25 +8,14 @@ if [ -z "$MODEL_FILE" ]; then
   exit 1
 fi
 
-echo "Found model: $MODEL_FILE"
-echo "Starting lemonade server"
-
-./lemond --host 0.0.0.0 --port 8080 &
-LEMOND_PID=$!
-
-until curl -sf http://localhost:8080/live > /dev/null 2>&1; do
-  sleep 1
-done
-
 # KServe sends the InferenceService name as the model name.
-# Register the extra model under that alias so requests resolve.
+# Symlink the GGUF so lemonade registers it under that name via extra_models_dir.
 ISVC_NAME="${HOSTNAME%%-predictor-*}"
 if [ -n "$ISVC_NAME" ]; then
-  echo "Registering model alias: $ISVC_NAME -> $MODEL_FILE"
-  curl -sf -X POST http://localhost:8080/v1/models/register \
-    -H "Content-Type: application/json" \
-    -d "{\"model_name\": \"user.$ISVC_NAME\", \"recipe\": \"llamacpp\", \"checkpoint\": \"$MODEL_FILE\", \"source\": \"local_path\"}" || \
-    echo "WARNING: Failed to register model alias"
+  ln -sf "$MODEL_FILE" "/mnt/models/${ISVC_NAME}.gguf"
+  echo "Symlinked model as: ${ISVC_NAME}.gguf -> $MODEL_FILE"
 fi
 
-wait $LEMOND_PID
+echo "Starting lemonade server"
+
+exec ./lemond --host 0.0.0.0 --port 8080
