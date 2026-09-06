@@ -4,7 +4,7 @@ USER root
 
 # Configure ROCm backend for llamacpp
 RUN mkdir -p /opt/lemonade/.config/lemonade && \
-    echo '{"llamacpp": {"backend": "vulkan"}, "extra_models_dir": "/mnt/models"}' > /opt/lemonade/.config/lemonade/config.json && \
+    echo '{"llamacpp": {"backend": "vulkan"}, "extra_models_dir": "/tmp/models"}' > /opt/lemonade/.config/lemonade/config.json && \
     chown -R 10001:0 /opt/lemonade/.config/lemonade
 
 # Pre-install the Vulkan backend (requires lemond running)

@@ -9,12 +9,12 @@ if [ -z "$MODEL_FILE" ]; then
 fi
 
 # KServe sends the InferenceService name as the model name.
-# Symlink the GGUF so lemonade registers it under that name via extra_models_dir.
+# /mnt/models is read-only, so symlink from a writable directory.
 ISVC_NAME="${HOSTNAME%%-predictor-*}"
-if [ -n "$ISVC_NAME" ]; then
-  ln -sf "$MODEL_FILE" "/mnt/models/${ISVC_NAME}.gguf"
-  echo "Symlinked model as: ${ISVC_NAME}.gguf -> $MODEL_FILE"
-fi
+MODELS_DIR="/tmp/models"
+mkdir -p "$MODELS_DIR"
+ln -sf "$MODEL_FILE" "$MODELS_DIR/${ISVC_NAME}.gguf"
+echo "Symlinked model as: ${ISVC_NAME}.gguf -> $MODEL_FILE"
 
 echo "Starting lemonade server"
 
