@@ -78,11 +78,17 @@ The Dockerfile bakes in `/opt/lemonade/.config/lemonade/config.json` with:
 | Setting | Value | Description |
 |---|---|---|
 | `llamacpp.backend` | `vulkan` | GPU backend for llama.cpp |
-| `extra_models_dir` | `/mnt/models` | Directory scanned for GGUF models (KServe mount path) |
+| `extra_models_dir` | `/tmp/models` | Directory scanned for GGUF models (symlinked from /mnt/models) |
+
+### Why Vulkan instead of ROCm?
+
+This branch was originally intended to use ROCm, but during testing on an AMD Ryzen AI 9 HX 370 (Radeon 890M iGPU, gfx1150), the ROCm backend failed with out-of-memory errors. The iGPU has only 512 MB of dedicated VRAM by default (configurable in BIOS), and the ROCm/HIP runtime could not allocate within that limit — even with a small context size.
+
+Vulkan handles APU shared memory differently, accessing the full system RAM pool (~47 GB) without needing a large dedicated VRAM carve-out. This makes it the practical choice for iGPU deployments. ROCm may work after increasing the iGPU VRAM allocation in BIOS to 4-8 GB.
 
 ### Environment Variables
 
-The Dockerfile sets the following defaults for ROCm compatibility, which can be overridden at deploy time:
+The Dockerfile sets the following defaults (carried over from ROCm experimentation, harmless with Vulkan):
 
 | Variable | Default | Description |
 |---|---|---|
