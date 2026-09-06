@@ -1,7 +1,7 @@
 apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
-  name: llamacpp
+  name: llamacpp-lemonade
   namespace: john
   annotations:
     opendatahub.io/recommended-accelerators: '["amd.com/gpu"]'
