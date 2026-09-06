@@ -1,5 +1,7 @@
 # llamacpp-oai
 
+> **Experimental branch available:** [`experiment/lemonade-rocm`](../../tree/experiment/lemonade-rocm) explores using [Lemonade](https://github.com/lemonade-sdk/lemonade) as an alternative backend with Vulkan GPU acceleration. See that branch's README for details.
+
 Deploy [llama.cpp](https://github.com/ggml-org/llama.cpp) as an OpenAI-compatible inference server on OpenShift AI using KServe.
 
 ## Overview
@@ -89,5 +91,4 @@ Additional arguments can be passed to `llama-server` via the container command i
 |---|---|
 | `-ngl <N>` | Number of layers to offload to GPU |
 | `-fa off` | Disable flash attention (needed for some iGPUs) |
-| `--device ROCm0` | Select the ROCm device |
 | `-c <N>` | Context size |

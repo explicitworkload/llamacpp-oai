@@ -34,7 +34,7 @@ spec:
             exit 1
           fi
           # Updated Flash Attention to '-fa off' for iGPU compatibility
-          exec llama-server -m "$MODEL_FILE" --host 0.0.0.0 --port 8080 -fa off -ngl 99 --device ROCm0 --alias default
+          exec llama-server -m "$MODEL_FILE" --host 0.0.0.0 --port 8080 -fa off -ngl 99 --alias default
       ports:
         - containerPort: 8080
           name: http1
