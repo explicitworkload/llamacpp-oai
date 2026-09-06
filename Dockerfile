@@ -7,9 +7,12 @@ RUN mkdir -p /opt/lemonade/.config/lemonade && \
     echo '{"llamacpp": {"backend": "vulkan"}, "extra_models_dir": "/mnt/models"}' > /opt/lemonade/.config/lemonade/config.json && \
     chown -R 10001:0 /opt/lemonade/.config/lemonade
 
-# Pre-install the Vulkan backend to avoid downloading at runtime
+# Pre-install the Vulkan backend (requires lemond running)
 USER 10001
-RUN ./lemonade backends install llamacpp:vulkan
+RUN ./lemond --host 127.0.0.1 & \
+    until curl -sf http://127.0.0.1:13305/live > /dev/null 2>&1; do sleep 1; done && \
+    ./lemonade backends install llamacpp:vulkan && \
+    kill %1
 USER root
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
