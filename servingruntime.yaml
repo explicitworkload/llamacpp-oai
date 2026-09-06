@@ -1,0 +1,55 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: llamacpp
+  namespace: john
+  annotations:
+    opendatahub.io/recommended-accelerators: '["amd.com/gpu"]'
+    opendatahub.io/runtime-version: llamacpp
+    openshift.io/display-name: llamacpp
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+    opendatahub.io/kserve-runtime: "true"
+  builtInAdapter:
+    memBufferBytes: 134217728
+    modelLoadingTimeoutMillis: 900000
+  supportedModelFormats:
+    - name: gguf
+      autoSelect: true
+  containers:
+    - name: kserve-container
+      image: quay.io/jgoh/llamacpp:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          MODEL_FILE=$(find /mnt/models -type f -name "*.gguf" | head -n 1)
+          if [ -z "$MODEL_FILE" ]; then
+            echo "ERROR: No .gguf file found in /mnt/models"
+            exit 1
+          fi
+          # Removed leading '/' so shell resolves it from $PATH or current build directory
+          exec llama-server -m "$MODEL_FILE" --host 0.0.0.0 --port 8080 -fa -ngl 99 --alias default
+      ports:
+        - containerPort: 8080
+          name: http1
+          protocol: TCP
+      resources:
+        requests:
+          cpu: "2"
+          memory: 4Gi
+          amd.com/gpu: "1"
+        limits:
+          cpu: "2"
+          memory: 4Gi
+          amd.com/gpu: "1"
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        runAsNonRoot: true
