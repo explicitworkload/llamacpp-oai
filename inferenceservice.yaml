@@ -1,12 +1,13 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: qwen35-4b
+  name: qwen35-4b-testing
   namespace: john
   annotations:
-    openshift.io/display-name: qwen35-4b
+    openshift.io/display-name: qwen35-4b-testing
     security.opendatahub.io/enable-auth: "false"
     serving.kserve.io/deploymentMode: Standard
+    serving.kserve.io/timeoutSeconds: "300"
   labels:
     opendatahub.io/dashboard: "true"
 spec:
@@ -23,16 +24,18 @@ spec:
       env:
         - name: CONTEXT_LENGTH
           value: "4096"
+        - name: REASONING_BUDGET
+          value: 0
       resources:
         limits:
           amd.com/gpu: "1"
-          cpu: "4"
-          memory: 12Gi
+          cpu: "6"
+          memory: 32Gi
         requests:
           amd.com/gpu: "1"
           cpu: "4"
-          memory: 12Gi
+          memory: 16Gi
       runtime: llamacpp
       storage:
-        key: odf-s3
+        key: models-odf-s3
         path: /models/Qwen_Qwen3.5-4B-Q4_K_M.gguf
