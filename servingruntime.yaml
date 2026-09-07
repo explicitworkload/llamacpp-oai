@@ -24,6 +24,8 @@ spec:
     - name: kserve-container
       image: quay.io/jgoh/llamacpp:latest
       imagePullPolicy: Always
+      command:
+        - /usr/local/bin/entrypoint.sh
       env:
         - name: CONTEXT_LENGTH
           value: "2048"
