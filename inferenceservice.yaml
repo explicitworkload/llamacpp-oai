@@ -1,10 +1,10 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: llamacpp
+  name: qwen35-4b
   namespace: john
   annotations:
-    openshift.io/display-name: llamacpp
+    openshift.io/display-name: qwen35-4b
     security.opendatahub.io/enable-auth: "false"
     serving.kserve.io/deploymentMode: Standard
   labels:
@@ -20,16 +20,19 @@ spec:
       modelFormat:
         name: gguf
       protocolVersion: v2
+      env:
+        - name: CONTEXT_LENGTH
+          value: "4096"
       resources:
         limits:
           amd.com/gpu: "1"
-          cpu: "2"
-          memory: 4Gi
+          cpu: "4"
+          memory: 12Gi
         requests:
           amd.com/gpu: "1"
-          cpu: "2"
-          memory: 4Gi
+          cpu: "4"
+          memory: 12Gi
       runtime: llamacpp
       storage:
         key: odf-s3
-        path: /models/Llama-3.2-1B-Instruct-Q4_K_M.gguf
+        path: /models/Qwen_Qwen3.5-4B-Q4_K_M.gguf
