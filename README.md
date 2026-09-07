@@ -81,8 +81,9 @@ The entrypoint supports the following environment variables, which can be set as
 |---|---|---|
 | `CONTEXT_LENGTH` | `2048` | Context window size (`-c`). Higher values use more memory for the KV cache. |
 | `N_GPU_LAYERS` | `99` | Number of layers to offload to GPU (`-ngl`). |
+| `REASONING_BUDGET` | `1024` | Max thinking tokens for reasoning models (`--reasoning-budget`). Set to `0` to disable. |
 | `FLASH_ATTENTION` | off | Set to `"on"` to enable flash attention (`-fa`). Leave off for iGPUs. |
-| `EXTRA_ARGS` | *(empty)* | Additional flags passed to `llama-server` (e.g., `--reasoning-budget 0`). |
+| `EXTRA_ARGS` | *(empty)* | Additional flags passed to `llama-server`. |
 
 To override per-model, add an `env` block in the InferenceService:
 
@@ -93,8 +94,8 @@ spec:
       env:
         - name: CONTEXT_LENGTH
           value: "4096"
-        - name: EXTRA_ARGS
-          value: "--reasoning-budget 0"
+        - name: REASONING_BUDGET
+          value: "0"
 ```
 
 ### ROCm Environment Variables

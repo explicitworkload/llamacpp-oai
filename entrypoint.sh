@@ -10,13 +10,14 @@ fi
 
 CONTEXT_LENGTH="${CONTEXT_LENGTH:-2048}"
 N_GPU_LAYERS="${N_GPU_LAYERS:-99}"
+REASONING_BUDGET="${REASONING_BUDGET:-1024}"
 
 FA_FLAG=""
 if [ "${FLASH_ATTENTION}" = "on" ]; then
   FA_FLAG="-fa"
 fi
 
-echo "Starting llama-server with model: $MODEL_FILE (context: $CONTEXT_LENGTH, gpu layers: $N_GPU_LAYERS)"
+echo "Starting llama-server with model: $MODEL_FILE (context: $CONTEXT_LENGTH, gpu layers: $N_GPU_LAYERS, reasoning budget: $REASONING_BUDGET)"
 
 # $EXTRA_ARGS is intentionally unquoted to allow word splitting for multiple flags
 # "$@" passes through any args from KServe or the ServingRuntime command
@@ -26,6 +27,7 @@ exec llama-server \
   --port 8080 \
   -c "$CONTEXT_LENGTH" \
   -ngl "$N_GPU_LAYERS" \
+  --reasoning-budget "$REASONING_BUDGET" \
   $FA_FLAG \
   --alias default \
   $EXTRA_ARGS \

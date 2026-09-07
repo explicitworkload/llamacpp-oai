@@ -29,6 +29,8 @@ spec:
           value: "2048"
         - name: N_GPU_LAYERS
           value: "99"
+        - name: REASONING_BUDGET
+          value: "1024"
       ports:
         - containerPort: 8080
           name: http1
