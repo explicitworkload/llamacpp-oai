@@ -11,6 +11,7 @@ metadata:
     opendatahub.io/dashboard: "true"
 spec:
   predictor:
+    timeout: 300
     automountServiceAccountToken: false
     deploymentStrategy:
       type: RollingUpdate
