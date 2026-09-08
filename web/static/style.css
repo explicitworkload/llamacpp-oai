@@ -665,6 +665,136 @@ body::after {
   letter-spacing: 2px;
 }
 
+/* Attach Button */
+.btn-attach {
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 300;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-attach:hover {
+  border-color: var(--green-dim);
+  color: var(--green);
+}
+
+/* Attachment Strip */
+.attachment-strip {
+  display: none;
+  gap: 8px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+
+.attachment-preview {
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  padding: 4px;
+}
+
+.attachment-preview img {
+  height: 60px;
+  width: auto;
+  display: block;
+}
+
+.attachment-preview.audio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 10px;
+}
+
+.attachment-audio-label {
+  color: var(--amber);
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+
+.attachment-audio-name {
+  color: var(--text-dim);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.attachment-remove:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* Message Attachments */
+.message-attachments {
+  margin-bottom: 8px;
+}
+
+.message-image {
+  max-width: 100%;
+  max-height: 300px;
+  border: 1px solid var(--border);
+  margin: 4px 0;
+  display: block;
+}
+
+.message-audio-file {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--amber);
+  padding: 6px 10px;
+  border: 1px solid var(--amber-dim);
+  background: rgba(240, 180, 0, 0.06);
+  margin: 4px 0;
+  display: inline-block;
+}
+
+.message-transcription {
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-left: 2px solid var(--amber-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.transcription-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--amber);
+  display: block;
+  margin-bottom: 4px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar { width: 200px; }

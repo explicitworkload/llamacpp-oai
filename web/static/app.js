@@ -3,6 +3,8 @@ let token = localStorage.getItem('cmd_token');
 let activeModel = null;
 let messages = [];
 let generating = false;
+let activeModelCaps = [];
+let attachments = [];
 
 // Auth
 async function login() {
@@ -48,7 +50,9 @@ function logout() {
   token = null;
   localStorage.removeItem('cmd_token');
   activeModel = null;
+  activeModelCaps = [];
   messages = [];
+  attachments = [];
   document.querySelector('.app-screen').classList.remove('active');
   document.querySelector('.login-screen').classList.remove('hidden');
   document.getElementById('login-password').value = '';
@@ -101,12 +105,77 @@ async function loadModels() {
 
 function selectModel(m) {
   activeModel = m.name;
+  activeModelCaps = m.capabilities || [];
+  attachments = [];
+  renderAttachments();
   document.querySelectorAll('.model-item').forEach(el => {
     el.classList.toggle('active', el.dataset.name === m.name);
   });
   document.getElementById('chat-target').textContent = `CHANNEL: ${(m.display || m.name).toUpperCase()}`;
   document.getElementById('chat-input').focus();
+  updateAttachButton();
   renderMessages();
+}
+
+// Attachments
+function updateAttachButton() {
+  const btn = document.getElementById('btn-attach');
+  const canAttach = activeModelCaps.includes('vision') || activeModelCaps.includes('audio-transcription');
+  btn.style.display = canAttach ? '' : 'none';
+  const input = document.getElementById('file-input');
+  const accept = [];
+  if (activeModelCaps.includes('vision')) accept.push('image/*');
+  if (activeModelCaps.includes('audio-transcription')) accept.push('audio/*');
+  input.accept = accept.join(',');
+}
+
+function triggerFileInput() {
+  document.getElementById('file-input').click();
+}
+
+function handleFileSelected(e) {
+  Array.from(e.target.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      attachments.push({
+        type: file.type.startsWith('image/') ? 'image' : 'audio',
+        file,
+        dataUrl: reader.result,
+        name: file.name,
+      });
+      renderAttachments();
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+}
+
+function removeAttachment(index) {
+  attachments.splice(index, 1);
+  renderAttachments();
+}
+
+function renderAttachments() {
+  const strip = document.getElementById('attachment-strip');
+  if (attachments.length === 0) {
+    strip.innerHTML = '';
+    strip.style.display = 'none';
+    return;
+  }
+  strip.style.display = 'flex';
+  strip.innerHTML = attachments.map((a, i) => {
+    if (a.type === 'image') {
+      return `<div class="attachment-preview">
+        <img src="${a.dataUrl}" alt="${esc(a.name)}">
+        <button class="attachment-remove" onclick="removeAttachment(${i})">&times;</button>
+      </div>`;
+    }
+    return `<div class="attachment-preview audio">
+      <span class="attachment-audio-label">AUDIO</span>
+      <span class="attachment-audio-name">${esc(a.name)}</span>
+      <button class="attachment-remove" onclick="removeAttachment(${i})">&times;</button>
+    </div>`;
+  }).join('');
 }
 
 // Chat
@@ -150,6 +219,22 @@ function buildMessageEl(msg) {
   let body = '';
   if (msg.thinking) {
     body += `<details class="message-thinking"><summary>REASONING LOG</summary>${esc(msg.thinking)}</details>`;
+  }
+  if (msg.attachments && msg.attachments.length > 0) {
+    body += '<div class="message-attachments">';
+    msg.attachments.forEach(a => {
+      if (a.type === 'image') {
+        body += `<img class="message-image" src="${a.dataUrl}" alt="${esc(a.name)}">`;
+      } else {
+        body += `<div class="message-audio-file">AUDIO: ${esc(a.name)}</div>`;
+      }
+    });
+    body += '</div>';
+  }
+  if (msg.transcriptions && msg.transcriptions.length > 0) {
+    msg.transcriptions.forEach(t => {
+      body += `<div class="message-transcription"><span class="transcription-label">TRANSCRIPT</span>${esc(t)}</div>`;
+    });
   }
   body += formatContent(msg.content || '');
   if (msg.stats) {
@@ -262,18 +347,67 @@ function esc(str) {
 async function sendMessage() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
-  if (!text || !activeModel || generating) return;
+  if ((!text && attachments.length === 0) || !activeModel || generating) return;
 
   input.value = '';
   input.style.height = 'auto';
 
-  messages.push({ role: 'user', content: text });
+  const currentAttachments = [...attachments];
+  attachments = [];
+  renderAttachments();
+
+  const userMsg = { role: 'user', content: text, attachments: currentAttachments };
+  messages.push(userMsg);
   generating = true;
   renderMessages();
 
+  const audioFiles = currentAttachments.filter(a => a.type === 'audio');
+  const transcriptions = [];
+  for (const a of audioFiles) {
+    try {
+      const fd = new FormData();
+      fd.append('file', a.file);
+      fd.append('model_endpoint', activeModel);
+      const res = await fetch(`${API}/api/audio/transcribe`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.status === 401) { logout(); return; }
+      if (res.ok) {
+        const data = await res.json();
+        transcriptions.push(data.text || '');
+      } else {
+        transcriptions.push('[TRANSCRIPTION FAILED]');
+      }
+    } catch {
+      transcriptions.push('[TRANSCRIPTION FAILED]');
+    }
+  }
+  if (transcriptions.length > 0) {
+    userMsg.transcriptions = transcriptions;
+    renderMessages();
+  }
+
+  const imageFiles = currentAttachments.filter(a => a.type === 'image');
+  const allText = [text, ...transcriptions.filter(t => !t.startsWith('['))].filter(Boolean).join('\n\n');
+
+  if (imageFiles.length > 0) {
+    const parts = [];
+    if (allText) parts.push({ type: 'text', text: allText });
+    imageFiles.forEach(a => parts.push({ type: 'image_url', image_url: { url: a.dataUrl } }));
+    userMsg.apiContent = parts;
+  } else if (allText !== text) {
+    userMsg.apiContent = allText;
+  }
+
   const apiMessages = messages
-    .filter(m => m.content && !m.content.includes('[TRANSMISSION ERROR:'))
-    .map(m => ({ role: m.role, content: m.content }));
+    .filter(m => {
+      const c = m.apiContent !== undefined ? m.apiContent : m.content;
+      if (Array.isArray(c)) return c.length > 0;
+      return c && !String(c).includes('[TRANSMISSION ERROR:');
+    })
+    .map(m => ({ role: m.role, content: m.apiContent !== undefined ? m.apiContent : m.content }));
 
   const stats = {
     startTime: performance.now(),
@@ -372,6 +506,8 @@ async function sendMessage() {
 
 function clearChat() {
   messages = [];
+  attachments = [];
+  renderAttachments();
   renderMessages();
 }
 
@@ -394,6 +530,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('login-password').addEventListener('keydown', e => {
     if (e.key === 'Enter') login();
   });
+  document.getElementById('btn-attach').addEventListener('click', triggerFileInput);
+  document.getElementById('file-input').addEventListener('change', handleFileSelected);
   document.getElementById('btn-send').addEventListener('click', sendMessage);
   document.getElementById('chat-input').addEventListener('keydown', handleInput);
   document.getElementById('chat-input').addEventListener('input', function () { autoResize(this); });

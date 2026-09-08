@@ -73,7 +73,10 @@
           <div class="no-model-selected">SELECT A UNIT TO BEGIN</div>
         </div>
         <div class="chat-input-area">
+          <input type="file" id="file-input" multiple hidden>
+          <div class="attachment-strip" id="attachment-strip"></div>
           <div class="chat-input-row">
+            <button class="btn-attach" id="btn-attach" style="display:none" title="Attach file">+</button>
             <textarea class="chat-input" id="chat-input" placeholder="Enter transmission..." rows="1"></textarea>
             <button class="btn-send" id="btn-send">SEND</button>
           </div>

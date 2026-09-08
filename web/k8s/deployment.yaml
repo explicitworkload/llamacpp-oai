@@ -15,7 +15,7 @@ rules:
     resources: ["inferenceservices"]
     verbs: ["get", "list"]
   - apiGroups: [""]
-    resources: ["services"]
+    resources: ["services", "configmaps", "secrets"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

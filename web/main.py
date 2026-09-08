@@ -7,7 +7,7 @@ import base64
 import yaml
 import jwt
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -94,6 +94,7 @@ def _load_external_endpoints() -> list[dict]:
             "base_url": base_url,
             "model_id": model.get("model_id", ""),
             "api_key": api_key,
+            "capabilities": meta.get("capabilities", []),
         })
     return endpoints
 
@@ -129,9 +130,9 @@ def list_models():
         conditions = isvc.get("status", {}).get("conditions", [])
         ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions)
         url = isvc.get("status", {}).get("address", {}).get("url", "")
-        models.append({"name": name, "display": display, "description": description, "ready": ready, "type": "kserve", "url": url})
+        models.append({"name": name, "display": display, "description": description, "ready": ready, "type": "kserve", "url": url, "capabilities": []})
     for ep in _get_external_endpoints():
-        models.append({"name": ep["name"], "display": ep["display"], "description": ep["description"], "ready": ep["ready"], "type": "external"})
+        models.append({"name": ep["name"], "display": ep["display"], "description": ep["description"], "ready": ep["ready"], "type": "external", "capabilities": ep.get("capabilities", [])})
     return {"models": models}
 
 
@@ -207,6 +208,35 @@ async def chat_completions(request: Request):
 
     async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
         resp = await c.post(chat_url, json=body, headers=headers)
+        return resp.json()
+
+
+@app.post("/api/audio/transcribe", dependencies=[Depends(verify_token)])
+async def transcribe_audio(file: UploadFile, model_endpoint: str = Form(...)):
+    ext = next((ep for ep in _get_external_endpoints() if ep["name"] == model_endpoint), None)
+    if not ext:
+        raise HTTPException(status_code=400, detail="Unknown endpoint")
+
+    transcribe_url = ext["base_url"].rstrip("/") + "/audio/transcriptions"
+    headers = {}
+    if ext.get("api_key"):
+        headers["Authorization"] = f"Bearer {ext['api_key']}"
+
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    timeout = httpx.Timeout(connect=60.0, read=300.0, write=30.0, pool=30.0)
+
+    audio_bytes = await file.read()
+    async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
+        resp = await c.post(
+            transcribe_url,
+            files={"file": (file.filename, audio_bytes, file.content_type)},
+            data={"model": "whisper-large-v3"},
+            headers=headers,
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
         return resp.json()
 
 
