@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm-proxy
+  labels:
+    app: litellm-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm-proxy
+  template:
+    metadata:
+      labels:
+        app: litellm-proxy
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm-database:main-latest
+          args:
+            - "--config"
+            - "/app/config.yaml"
+            - "--port"
+            - "4000"
+          ports:
+            - containerPort: 4000
+              name: http
+          envFrom:
+            - secretRef:
+                name: azure-credentials
+          env:
+            - name: HOME
+              value: "/tmp"
+            - name: TMPDIR
+              value: "/tmp"
+            - name: DATABASE_URL
+              value: "postgresql://litellm:litellm-secret-pw@litellm-postgres:5432/litellm"
+            - name: LITELLM_MASTER_KEY
+              value: "A9dsma9c213c18cNc12398n19cn"
+            - name: STORE_MODEL_IN_DB
+              value: "True"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+      volumes:
+        - name: config-volume
+          configMap:
+            name: litellm-config
+        - name: tmp
+          emptyDir: {}

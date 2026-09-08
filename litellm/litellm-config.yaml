@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+data:
+  config.yaml: |
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY
+      store_model_in_db: true
+
+    # model_list:
+    #   - model_name: gpt-4
+    #     litellm_params:
+    #       model: azure/gpt-4
+    #       api_base: https://llm-gpt4-lightspeed.cognitiveservices.azure.com/
+    #       tenant_id: os.environ/AZURE_TENANT_ID
+    #       client_id: os.environ/AZURE_CLIENT_ID
+    #       client_secret: os.environ/AZURE_CLIENT_SECRET
