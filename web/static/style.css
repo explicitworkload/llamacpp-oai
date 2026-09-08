@@ -665,6 +665,41 @@ body::after {
   letter-spacing: 2px;
 }
 
+/* Markdown Formatting */
+.message-body strong {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+.message-body em {
+  font-style: italic;
+  color: var(--text-bright);
+}
+
+.md-heading {
+  font-weight: 600;
+  color: var(--text-bright);
+  margin: 12px 0 6px;
+}
+
+.md-h1 { font-size: 16px; letter-spacing: 1px; }
+.md-h2 { font-size: 15px; letter-spacing: 1px; }
+.md-h3 { font-size: 14px; letter-spacing: 1px; }
+.md-h4 { font-size: 13px; letter-spacing: 1px; }
+
+.md-list-item {
+  padding-left: 16px;
+  position: relative;
+  margin: 2px 0;
+}
+
+.md-list-item::before {
+  content: '>';
+  position: absolute;
+  left: 0;
+  color: var(--green-dim);
+}
+
 /* Attach Button */
 .btn-attach {
   padding: 0;

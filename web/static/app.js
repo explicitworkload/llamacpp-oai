@@ -334,6 +334,13 @@ function formatContent(text) {
   let html = esc(text);
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/^#### (.+)$/gm, '<div class="md-heading md-h4">$1</div>');
+  html = html.replace(/^### (.+)$/gm, '<div class="md-heading md-h3">$1</div>');
+  html = html.replace(/^## (.+)$/gm, '<div class="md-heading md-h2">$1</div>');
+  html = html.replace(/^# (.+)$/gm, '<div class="md-heading md-h1">$1</div>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/^- (.+)$/gm, '<div class="md-list-item">$1</div>');
   html = html.replace(/\n/g, '<br>');
   return html;
 }
