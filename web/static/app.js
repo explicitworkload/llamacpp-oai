@@ -109,8 +109,24 @@ function selectModel(m) {
 }
 
 // Chat
+let streamingEl = null;
+
+function buildMessageEl(msg) {
+  const el = document.createElement('div');
+  el.className = `message ${msg.role}`;
+  const label = msg.role === 'user' ? 'OPERATOR' : 'AI UNIT';
+  let body = '';
+  if (msg.thinking) {
+    body += `<details class="message-thinking"><summary>REASONING LOG</summary>${esc(msg.thinking)}</details>`;
+  }
+  body += formatContent(msg.content || '');
+  el.innerHTML = `<div class="message-label">${label}</div><div class="message-body">${body}</div>`;
+  return el;
+}
+
 function renderMessages() {
   const container = document.getElementById('chat-messages');
+  streamingEl = null;
 
   if (!activeModel) {
     container.innerHTML = '<div class="no-model-selected">SELECT A UNIT TO BEGIN</div>';
@@ -127,21 +143,7 @@ function renderMessages() {
   }
 
   container.innerHTML = '';
-  messages.forEach((msg, i) => {
-    const el = document.createElement('div');
-    el.className = `message ${msg.role}`;
-
-    const label = msg.role === 'user' ? 'OPERATOR' : 'AI UNIT';
-    let body = '';
-
-    if (msg.thinking) {
-      body += `<details class="message-thinking"><summary>REASONING LOG</summary>${esc(msg.thinking)}</details>`;
-    }
-    body += formatContent(msg.content || '');
-
-    el.innerHTML = `<div class="message-label">${label}</div><div class="message-body">${body}</div>`;
-    container.appendChild(el);
-  });
+  messages.forEach(msg => container.appendChild(buildMessageEl(msg)));
 
   if (generating) {
     const el = document.createElement('div');
@@ -156,6 +158,43 @@ function renderMessages() {
       </div>`;
     container.appendChild(el);
   }
+
+  container.scrollTop = container.scrollHeight;
+}
+
+function updateStreamingMessage(msg) {
+  const container = document.getElementById('chat-messages');
+
+  if (!streamingEl) {
+    const loading = container.querySelector('.typing-indicator');
+    if (loading) loading.closest('.message').remove();
+    streamingEl = document.createElement('div');
+    streamingEl.className = 'message assistant';
+    streamingEl.innerHTML = '<div class="message-label">AI UNIT</div><div class="message-body"></div>';
+    container.appendChild(streamingEl);
+  }
+
+  const body = streamingEl.querySelector('.message-body');
+  let thinkingEl = body.querySelector('.message-thinking');
+
+  if (msg.thinking) {
+    if (!thinkingEl) {
+      thinkingEl = document.createElement('details');
+      thinkingEl.className = 'message-thinking';
+      thinkingEl.open = true;
+      thinkingEl.innerHTML = '<summary>REASONING LOG</summary><div class="thinking-content"></div>';
+      body.prepend(thinkingEl);
+    }
+    thinkingEl.querySelector('.thinking-content').textContent = msg.thinking;
+  }
+
+  let contentEl = body.querySelector('.content-area');
+  if (!contentEl) {
+    contentEl = document.createElement('span');
+    contentEl.className = 'content-area';
+    body.appendChild(contentEl);
+  }
+  contentEl.innerHTML = formatContent(msg.content || '');
 
   container.scrollTop = container.scrollHeight;
 }
@@ -234,7 +273,7 @@ async function sendMessage() {
           if (delta.content) {
             assistantMsg.content += delta.content;
           }
-          renderMessages();
+          updateStreamingMessage(assistantMsg);
         } catch {}
       }
     }
