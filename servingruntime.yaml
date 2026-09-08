@@ -32,7 +32,9 @@ spec:
         - name: N_GPU_LAYERS
           value: "99"
         - name: REASONING_BUDGET
-          value: "1024"
+          value: "256"
+        - name: FLASH_ATTENTION
+          value: "on"
       ports:
         - containerPort: 8080
           name: http1
