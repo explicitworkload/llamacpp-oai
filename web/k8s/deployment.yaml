@@ -1,0 +1,95 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: command-center
+  namespace: john
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: command-center-isvc-reader
+  namespace: john
+rules:
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: command-center-isvc-reader
+  namespace: john
+subjects:
+  - kind: ServiceAccount
+    name: command-center
+    namespace: john
+roleRef:
+  kind: Role
+  name: command-center-isvc-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: command-center
+  namespace: john
+  labels:
+    app: command-center
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: command-center
+  template:
+    metadata:
+      labels:
+        app: command-center
+    spec:
+      serviceAccountName: command-center
+      containers:
+        - name: web
+          image: quay.io/jgoh/command-center:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: COMMAND_PASSWORD
+              value: "commander"
+            - name: NAMESPACE
+              value: "john"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 128Mi
+            limits:
+              cpu: "500m"
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: command-center
+  namespace: john
+spec:
+  selector:
+    app: command-center
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: command-center
+  namespace: john
+spec:
+  to:
+    kind: Service
+    name: command-center
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
