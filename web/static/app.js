@@ -358,10 +358,11 @@ function updateStreamingMessage(msg) {
 }
 
 function parseGuardrailError(err) {
-  const pf = err.provider_specific_fields;
-  if (!pf) return null;
-  const name = pf.guardrail_name || 'Guardrail';
-  const desc = pf.description || pf.error || err.message || 'Content blocked';
+  const inner = err.error || err;
+  const pf = inner.provider_specific_fields || err.provider_specific_fields;
+  if (!pf || !pf.guardrail_name) return null;
+  const name = pf.guardrail_name;
+  const desc = pf.description || pf.error || inner.message || 'Content blocked';
   const severity = pf.severity ? pf.severity.toUpperCase() : null;
   const matched = pf.matched_phrase || pf.keyword || null;
   let text = `BLOCKED BY ${name.toUpperCase()}`;
@@ -457,6 +458,7 @@ async function sendMessage() {
   }
   messages
     .filter(m => {
+      if (m.blocked) return false;
       const c = m.apiContent !== undefined ? m.apiContent : m.content;
       if (Array.isArray(c)) return c.length > 0;
       return c && !String(c).includes('[TRANSMISSION ERROR:');
@@ -522,6 +524,7 @@ async function sendMessage() {
             if (guardrail) {
               assistantMsg.blocked = true;
               assistantMsg.content = guardrail;
+              userMsg.blocked = true;
               updateStreamingMessage(assistantMsg);
               continue;
             }
@@ -561,6 +564,7 @@ async function sendMessage() {
       guardrailMsg = parseGuardrailError(parsed);
     } catch {}
     if (guardrailMsg) {
+      userMsg.blocked = true;
       if (assistantMsg) {
         assistantMsg.blocked = true;
         assistantMsg.content = guardrailMsg;
