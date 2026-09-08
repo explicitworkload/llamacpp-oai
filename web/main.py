@@ -1,4 +1,5 @@
 import os
+import json
 import datetime
 import ssl
 
@@ -121,16 +122,27 @@ async def chat_completions(request: Request):
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
 
+    timeout = httpx.Timeout(connect=60.0, read=300.0, write=30.0, pool=30.0)
+
     if stream:
         async def generate():
-            async with httpx.AsyncClient(verify=ssl_ctx, timeout=300) as c:
-                async with c.stream("POST", f"{base_url}/v1/chat/completions", json=body, headers=headers) as resp:
-                    async for chunk in resp.aiter_text():
-                        yield chunk
+            try:
+                async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
+                    async with c.stream("POST", f"{base_url}/v1/chat/completions", json=body, headers=headers) as resp:
+                        if resp.status_code != 200:
+                            error_text = (await resp.aread()).decode("utf-8", errors="replace")
+                            yield f"data: {json.dumps({'error': {'message': error_text, 'code': resp.status_code}})}\n\ndata: [DONE]\n\n"
+                            return
+                        async for chunk in resp.aiter_text():
+                            yield chunk
+            except httpx.TimeoutException:
+                yield f"data: {json.dumps({'error': {'message': 'upstream timeout', 'code': 504}})}\n\ndata: [DONE]\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'error': {'message': str(e), 'code': 502}})}\n\ndata: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
-    async with httpx.AsyncClient(verify=ssl_ctx, timeout=300) as c:
+    async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
         resp = await c.post(f"{base_url}/v1/chat/completions", json=body, headers=headers)
         return resp.json()
 

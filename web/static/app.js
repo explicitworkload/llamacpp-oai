@@ -110,6 +110,37 @@ function selectModel(m) {
 
 // Chat
 let streamingEl = null;
+let streamStats = null;
+
+function formatStatsHtml(stats, streaming) {
+  const now = streaming ? performance.now() : stats.endTime;
+  const elapsed = ((now - stats.startTime) / 1000).toFixed(1);
+  const parts = [];
+
+  if (stats.firstTokenTime) {
+    parts.push(`TTFT ${((stats.firstTokenTime - stats.startTime) / 1000).toFixed(2)}s`);
+  }
+  if (stats.firstContentTime && stats.firstTokenTime &&
+      stats.firstContentTime - stats.firstTokenTime > 50) {
+    parts.push(`TTFO ${((stats.firstContentTime - stats.startTime) / 1000).toFixed(2)}s`);
+  }
+
+  const tokens = stats.completionTokens || stats.tokenCount;
+  if (tokens > 0) {
+    parts.push(`${tokens} TOKENS`);
+    const genTime = stats.firstTokenTime ? (now - stats.firstTokenTime) / 1000 : 0;
+    if (genTime > 0.1) {
+      parts.push(`${(tokens / genTime).toFixed(1)} T/s`);
+    }
+  }
+  if (stats.promptTokens != null) {
+    parts.push(`${stats.promptTokens} PROMPT`);
+  }
+  parts.push(`${elapsed}s`);
+  if (streaming) parts.push('<span class="stats-live">LIVE</span>');
+
+  return parts.join(' <span class="stats-sep">|</span> ');
+}
 
 function buildMessageEl(msg) {
   const el = document.createElement('div');
@@ -120,6 +151,9 @@ function buildMessageEl(msg) {
     body += `<details class="message-thinking"><summary>REASONING LOG</summary>${esc(msg.thinking)}</details>`;
   }
   body += formatContent(msg.content || '');
+  if (msg.stats) {
+    body += `<div class="message-stats">${formatStatsHtml(msg.stats, false)}</div>`;
+  }
   el.innerHTML = `<div class="message-label">${label}</div><div class="message-body">${body}</div>`;
   return el;
 }
@@ -196,6 +230,16 @@ function updateStreamingMessage(msg) {
   }
   contentEl.innerHTML = formatContent(msg.content || '');
 
+  if (streamStats) {
+    let statsEl = body.querySelector('.message-stats');
+    if (!statsEl) {
+      statsEl = document.createElement('div');
+      statsEl.className = 'message-stats';
+      body.appendChild(statsEl);
+    }
+    statsEl.innerHTML = formatStatsHtml(streamStats, true);
+  }
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -228,6 +272,18 @@ async function sendMessage() {
 
   const apiMessages = messages.map(m => ({ role: m.role, content: m.content }));
 
+  const stats = {
+    startTime: performance.now(),
+    firstTokenTime: null,
+    firstContentTime: null,
+    endTime: null,
+    tokenCount: 0,
+    promptTokens: null,
+    completionTokens: null,
+  };
+  streamStats = stats;
+  let assistantMsg = null;
+
   try {
     const res = await fetch(`${API}/api/chat/completions`, {
       method: 'POST',
@@ -237,6 +293,7 @@ async function sendMessage() {
         model: 'default',
         messages: apiMessages,
         stream: true,
+        stream_options: { include_usage: true },
       }),
     });
 
@@ -245,7 +302,7 @@ async function sendMessage() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let assistantMsg = { role: 'assistant', content: '', thinking: '' };
+    assistantMsg = { role: 'assistant', content: '', thinking: '', stats: null };
     messages.push(assistantMsg);
 
     let buffer = '';
@@ -264,23 +321,48 @@ async function sendMessage() {
 
         try {
           const chunk = JSON.parse(data);
-          const delta = chunk.choices?.[0]?.delta;
-          if (!delta) continue;
 
-          if (delta.reasoning_content) {
-            assistantMsg.thinking += delta.reasoning_content;
+          if (chunk.error) {
+            throw new Error(chunk.error.message || 'upstream error');
           }
-          if (delta.content) {
-            assistantMsg.content += delta.content;
+
+          const delta = chunk.choices?.[0]?.delta;
+          if (delta) {
+            if (delta.reasoning_content) {
+              assistantMsg.thinking += delta.reasoning_content;
+              stats.tokenCount++;
+              if (!stats.firstTokenTime) stats.firstTokenTime = performance.now();
+            }
+            if (delta.content) {
+              assistantMsg.content += delta.content;
+              stats.tokenCount++;
+              if (!stats.firstTokenTime) stats.firstTokenTime = performance.now();
+              if (!stats.firstContentTime) stats.firstContentTime = performance.now();
+            }
+            updateStreamingMessage(assistantMsg);
           }
-          updateStreamingMessage(assistantMsg);
-        } catch {}
+
+          if (chunk.usage) {
+            stats.promptTokens = chunk.usage.prompt_tokens;
+            stats.completionTokens = chunk.usage.completion_tokens;
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue;
+          throw e;
+        }
       }
     }
   } catch (err) {
-    messages.push({ role: 'assistant', content: `[TRANSMISSION ERROR: ${err.message}]` });
+    if (assistantMsg) {
+      assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + `[TRANSMISSION ERROR: ${err.message}]`;
+    } else {
+      messages.push({ role: 'assistant', content: `[TRANSMISSION ERROR: ${err.message}]` });
+    }
   }
 
+  stats.endTime = performance.now();
+  if (assistantMsg) assistantMsg.stats = stats;
+  streamStats = null;
   generating = false;
   renderMessages();
 }

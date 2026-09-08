@@ -536,6 +536,27 @@ body::after {
   margin-bottom: 4px;
 }
 
+/* Message Stats */
+.message-stats {
+  margin-top: 8px;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--border);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.message-stats .stats-sep {
+  color: var(--border);
+  margin: 0 2px;
+}
+
+.message-stats .stats-live {
+  color: var(--green-dim);
+  animation: pulse 1.4s infinite ease-in-out;
+}
+
 /* Typing indicator */
 .typing-indicator {
   display: inline-flex;
