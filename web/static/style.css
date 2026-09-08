@@ -492,6 +492,15 @@ body::after {
   clip-path: polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px));
 }
 
+.message.blocked .message-label { color: var(--red); }
+
+.message.blocked .message-body {
+  background: rgba(255, 51, 51, 0.08);
+  border-color: var(--red);
+  color: var(--red);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+
 .message-body p { margin-bottom: 8px; }
 .message-body p:last-child { margin-bottom: 0; }
 

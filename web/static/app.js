@@ -237,8 +237,8 @@ function formatStatsHtml(stats, streaming) {
 
 function buildMessageEl(msg) {
   const el = document.createElement('div');
-  el.className = `message ${msg.role}`;
-  const label = msg.role === 'user' ? 'OPERATOR' : 'AI UNIT';
+  el.className = `message ${msg.role}${msg.blocked ? ' blocked' : ''}`;
+  const label = msg.role === 'user' ? 'OPERATOR' : msg.blocked ? 'GUARDRAIL' : 'AI UNIT';
   let body = '';
   if (msg.thinking) {
     body += `<details class="message-thinking"><summary>REASONING LOG</summary>${esc(msg.thinking)}</details>`;
@@ -317,6 +317,11 @@ function updateStreamingMessage(msg) {
     container.appendChild(streamingEl);
   }
 
+  if (msg.blocked) {
+    streamingEl.className = 'message assistant blocked';
+    streamingEl.querySelector('.message-label').textContent = 'GUARDRAIL';
+  }
+
   const body = streamingEl.querySelector('.message-body');
   let thinkingEl = body.querySelector('.message-thinking');
 
@@ -350,6 +355,20 @@ function updateStreamingMessage(msg) {
   }
 
   container.scrollTop = container.scrollHeight;
+}
+
+function parseGuardrailError(err) {
+  const pf = err.provider_specific_fields;
+  if (!pf) return null;
+  const name = pf.guardrail_name || 'Guardrail';
+  const desc = pf.description || pf.error || err.message || 'Content blocked';
+  const severity = pf.severity ? pf.severity.toUpperCase() : null;
+  const matched = pf.matched_phrase || pf.keyword || null;
+  let text = `BLOCKED BY ${name.toUpperCase()}`;
+  if (severity) text += ` [${severity}]`;
+  text += `\n${desc}`;
+  if (matched) text += `\nMatched: "${matched}"`;
+  return text;
 }
 
 function formatContent(text) {
@@ -495,6 +514,17 @@ async function sendMessage() {
           const chunk = JSON.parse(data);
 
           if (chunk.error) {
+            let errObj = chunk.error;
+            if (typeof errObj.message === 'string') {
+              try { errObj = JSON.parse(errObj.message); } catch {}
+            }
+            const guardrail = parseGuardrailError(errObj);
+            if (guardrail) {
+              assistantMsg.blocked = true;
+              assistantMsg.content = guardrail;
+              updateStreamingMessage(assistantMsg);
+              continue;
+            }
             throw new Error(chunk.error.message || 'upstream error');
           }
 
@@ -525,7 +555,19 @@ async function sendMessage() {
       }
     }
   } catch (err) {
-    if (assistantMsg) {
+    let guardrailMsg = null;
+    try {
+      const parsed = JSON.parse(err.message);
+      guardrailMsg = parseGuardrailError(parsed);
+    } catch {}
+    if (guardrailMsg) {
+      if (assistantMsg) {
+        assistantMsg.blocked = true;
+        assistantMsg.content = guardrailMsg;
+      } else {
+        messages.push({ role: 'assistant', content: guardrailMsg, blocked: true });
+      }
+    } else if (assistantMsg) {
       assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + `[TRANSMISSION ERROR: ${err.message}]`;
     } else {
       messages.push({ role: 'assistant', content: `[TRANSMISSION ERROR: ${err.message}]` });
