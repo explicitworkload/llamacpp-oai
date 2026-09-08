@@ -66,6 +66,7 @@
         <div class="chat-header">
           <div class="chat-target" id="chat-target">NO UNIT SELECTED</div>
           <div class="chat-actions">
+            <button class="btn-directive" id="btn-directive" style="display:none">DIRECTIVE</button>
             <button class="btn-clear" id="btn-clear">CLEAR</button>
           </div>
         </div>
@@ -81,6 +82,22 @@
             <button class="btn-send" id="btn-send">SEND</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Directive Editor Modal -->
+  <div class="directive-overlay" id="directive-overlay">
+    <div class="directive-modal">
+      <div class="directive-header">
+        <span class="directive-title">UNIT DIRECTIVE</span>
+        <button class="directive-close" id="directive-close">&times;</button>
+      </div>
+      <div class="directive-hint">System prompt prepended to all transmissions for this unit.</div>
+      <textarea class="directive-input" id="directive-input" rows="6" placeholder="Enter system directive..."></textarea>
+      <div class="directive-footer">
+        <button class="directive-reset" id="directive-reset">RESET DEFAULT</button>
+        <button class="directive-save" id="directive-save">SAVE</button>
       </div>
     </div>
   </div>

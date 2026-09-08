@@ -1,10 +1,12 @@
 const API = '';
+const DEFAULT_DIRECTIVE = 'You are a military intelligence specialist in doctrine.';
 let token = localStorage.getItem('cmd_token');
 let activeModel = null;
 let messages = [];
 let generating = false;
 let activeModelCaps = [];
 let attachments = [];
+let systemPrompts = JSON.parse(localStorage.getItem('cmd_directives') || '{}');
 
 // Auth
 async function login() {
@@ -113,8 +115,29 @@ function selectModel(m) {
   });
   document.getElementById('chat-target').textContent = `CHANNEL: ${(m.display || m.name).toUpperCase()}`;
   document.getElementById('chat-input').focus();
+  document.getElementById('btn-directive').style.display = '';
   updateAttachButton();
   renderMessages();
+}
+
+function getDirective(modelName) {
+  return systemPrompts[modelName] !== undefined ? systemPrompts[modelName] : DEFAULT_DIRECTIVE;
+}
+
+function saveDirective(modelName, prompt) {
+  systemPrompts[modelName] = prompt;
+  localStorage.setItem('cmd_directives', JSON.stringify(systemPrompts));
+}
+
+function showDirectiveEditor() {
+  if (!activeModel) return;
+  document.getElementById('directive-input').value = getDirective(activeModel);
+  document.getElementById('directive-overlay').classList.add('active');
+  document.getElementById('directive-input').focus();
+}
+
+function hideDirectiveEditor() {
+  document.getElementById('directive-overlay').classList.remove('active');
 }
 
 // Attachments
@@ -408,13 +431,18 @@ async function sendMessage() {
     userMsg.apiContent = allText;
   }
 
-  const apiMessages = messages
+  const directive = getDirective(activeModel);
+  const apiMessages = [];
+  if (directive) {
+    apiMessages.push({ role: 'system', content: directive });
+  }
+  messages
     .filter(m => {
       const c = m.apiContent !== undefined ? m.apiContent : m.content;
       if (Array.isArray(c)) return c.length > 0;
       return c && !String(c).includes('[TRANSMISSION ERROR:');
     })
-    .map(m => ({ role: m.role, content: m.apiContent !== undefined ? m.apiContent : m.content }));
+    .forEach(m => apiMessages.push({ role: m.role, content: m.apiContent !== undefined ? m.apiContent : m.content }));
 
   const stats = {
     startTime: performance.now(),
@@ -539,6 +567,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('btn-attach').addEventListener('click', triggerFileInput);
   document.getElementById('file-input').addEventListener('change', handleFileSelected);
+  document.getElementById('btn-directive').addEventListener('click', showDirectiveEditor);
+  document.getElementById('directive-close').addEventListener('click', hideDirectiveEditor);
+  document.getElementById('directive-overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) hideDirectiveEditor();
+  });
+  document.getElementById('directive-save').addEventListener('click', () => {
+    saveDirective(activeModel, document.getElementById('directive-input').value);
+    hideDirectiveEditor();
+  });
+  document.getElementById('directive-reset').addEventListener('click', () => {
+    document.getElementById('directive-input').value = DEFAULT_DIRECTIVE;
+  });
   document.getElementById('btn-send').addEventListener('click', sendMessage);
   document.getElementById('chat-input').addEventListener('keydown', handleInput);
   document.getElementById('chat-input').addEventListener('input', function () { autoResize(this); });
