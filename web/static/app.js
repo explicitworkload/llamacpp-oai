@@ -270,7 +270,9 @@ async function sendMessage() {
   generating = true;
   renderMessages();
 
-  const apiMessages = messages.map(m => ({ role: m.role, content: m.content }));
+  const apiMessages = messages
+    .filter(m => m.content && !m.content.includes('[TRANSMISSION ERROR:'))
+    .map(m => ({ role: m.role, content: m.content }));
 
   const stats = {
     startTime: performance.now(),
