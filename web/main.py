@@ -77,11 +77,8 @@ def _get_model_url(model_name: str) -> str:
     svc_name = f"{model_name}-predictor"
     try:
         svc = core_api.read_namespaced_service(svc_name, NAMESPACE)
-        svc_port = svc.spec.ports[0] if svc.spec.ports else None
-        if svc_port:
-            port = svc_port.port
-            scheme = "https" if svc_port.name == "https" or port == 8443 else "http"
-            return f"{scheme}://{svc_name}.{NAMESPACE}.svc.cluster.local:{port}"
+        port = svc.spec.ports[0].port if svc.spec.ports else 80
+        return f"http://{svc_name}.{NAMESPACE}.svc.cluster.local:{port}"
     except client.exceptions.ApiException:
         pass
     isvc = custom_api.get_namespaced_custom_object(
