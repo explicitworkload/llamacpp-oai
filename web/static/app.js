@@ -6,6 +6,7 @@ let messages = [];
 let generating = false;
 let activeModelCaps = [];
 let attachments = [];
+let abortController = null;
 let systemPrompts = JSON.parse(localStorage.getItem('cmd_directives') || '{}');
 
 // Auth
@@ -405,6 +406,20 @@ function esc(str) {
   return d.innerHTML;
 }
 
+function showStopButton() {
+  document.getElementById('btn-send').style.display = 'none';
+  document.getElementById('btn-stop').style.display = '';
+}
+
+function showSendButton() {
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('btn-send').style.display = '';
+}
+
+function stopGenerating() {
+  if (abortController) abortController.abort();
+}
+
 async function sendMessage() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
@@ -420,6 +435,7 @@ async function sendMessage() {
   const userMsg = { role: 'user', content: text, attachments: currentAttachments };
   messages.push(userMsg);
   generating = true;
+  showStopButton();
   renderMessages();
 
   const audioFiles = currentAttachments.filter(a => a.type === 'audio');
@@ -488,10 +504,13 @@ async function sendMessage() {
   streamStats = stats;
   let assistantMsg = null;
 
+  abortController = new AbortController();
+
   try {
     const res = await fetch(`${API}/api/chat/completions`, {
       method: 'POST',
       headers: authHeaders(),
+      signal: abortController.signal,
       body: JSON.stringify({
         model_endpoint: activeModel,
         model: 'default',
@@ -569,30 +588,38 @@ async function sendMessage() {
       }
     }
   } catch (err) {
-    let guardrailMsg = null;
-    try {
-      const parsed = JSON.parse(err.message);
-      guardrailMsg = parseGuardrailError(parsed);
-    } catch {}
-    if (guardrailMsg) {
-      userMsg.blocked = true;
-      if (assistantMsg) {
-        assistantMsg.blocked = true;
-        assistantMsg.content = guardrailMsg;
-      } else {
-        messages.push({ role: 'assistant', content: guardrailMsg, blocked: true });
+    if (err.name === 'AbortError') {
+      if (assistantMsg && !assistantMsg.content && !assistantMsg.thinking) {
+        messages.pop();
       }
-    } else if (assistantMsg) {
-      assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + `[TRANSMISSION ERROR: ${err.message}]`;
     } else {
-      messages.push({ role: 'assistant', content: `[TRANSMISSION ERROR: ${err.message}]` });
+      let guardrailMsg = null;
+      try {
+        const parsed = JSON.parse(err.message);
+        guardrailMsg = parseGuardrailError(parsed);
+      } catch {}
+      if (guardrailMsg) {
+        userMsg.blocked = true;
+        if (assistantMsg) {
+          assistantMsg.blocked = true;
+          assistantMsg.content = guardrailMsg;
+        } else {
+          messages.push({ role: 'assistant', content: guardrailMsg, blocked: true });
+        }
+      } else if (assistantMsg) {
+        assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + `[TRANSMISSION ERROR: ${err.message}]`;
+      } else {
+        messages.push({ role: 'assistant', content: `[TRANSMISSION ERROR: ${err.message}]` });
+      }
     }
   }
 
   stats.endTime = performance.now();
   if (assistantMsg) assistantMsg.stats = stats;
   streamStats = null;
+  abortController = null;
   generating = false;
+  showSendButton();
   renderMessages();
 }
 
@@ -637,6 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('directive-input').value = DEFAULT_DIRECTIVE;
   });
   document.getElementById('btn-send').addEventListener('click', sendMessage);
+  document.getElementById('btn-stop').addEventListener('click', stopGenerating);
   document.getElementById('chat-input').addEventListener('keydown', handleInput);
   document.getElementById('chat-input').addEventListener('input', function () { autoResize(this); });
   document.getElementById('btn-refresh').addEventListener('click', loadModels);
