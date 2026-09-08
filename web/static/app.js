@@ -82,11 +82,12 @@ async function loadModels() {
     data.models.forEach(m => {
       const el = document.createElement('div');
       el.className = `model-item${m.ready ? '' : ' offline'}${activeModel === m.name ? ' active' : ''}`;
+      el.dataset.name = m.name;
       el.innerHTML = `
         <div class="model-dot ${m.ready ? 'online' : 'offline'}"></div>
         <div class="model-info">
           <div class="model-name">${esc(m.display || m.name)}</div>
-          <div class="model-id">${esc(m.name)}</div>
+          <div class="model-id">${esc(m.description || m.name)}</div>
         </div>`;
       if (m.ready) {
         el.addEventListener('click', () => selectModel(m));
@@ -101,7 +102,7 @@ async function loadModels() {
 function selectModel(m) {
   activeModel = m.name;
   document.querySelectorAll('.model-item').forEach(el => {
-    el.classList.toggle('active', el.querySelector('.model-id').textContent === m.name);
+    el.classList.toggle('active', el.dataset.name === m.name);
   });
   document.getElementById('chat-target').textContent = `CHANNEL: ${(m.display || m.name).toUpperCase()}`;
   document.getElementById('chat-input').focus();

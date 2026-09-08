@@ -64,11 +64,13 @@ def list_models():
     models = []
     for isvc in isvcs.get("items", []):
         name = isvc["metadata"]["name"]
-        display = isvc.get("metadata", {}).get("annotations", {}).get("openshift.io/display-name", name)
+        annotations = isvc.get("metadata", {}).get("annotations", {})
+        display = annotations.get("openshift.io/display-name", name)
+        description = annotations.get("openshift.io/description", "")
         conditions = isvc.get("status", {}).get("conditions", [])
         ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions)
         url = isvc.get("status", {}).get("address", {}).get("url", "")
-        models.append({"name": name, "display": display, "ready": ready, "url": url})
+        models.append({"name": name, "display": display, "description": description, "ready": ready, "url": url})
     return {"models": models}
 
 
