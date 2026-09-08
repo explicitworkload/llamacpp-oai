@@ -73,14 +73,6 @@ def list_models():
 
 
 def _get_model_url(model_name: str) -> str:
-    core_api = client.CoreV1Api()
-    svc_name = f"{model_name}-predictor"
-    try:
-        svc = core_api.read_namespaced_service(svc_name, NAMESPACE)
-        port = svc.spec.ports[0].port if svc.spec.ports else 80
-        return f"http://{svc_name}.{NAMESPACE}.svc.cluster.local:{port}"
-    except client.exceptions.ApiException:
-        pass
     isvc = custom_api.get_namespaced_custom_object(
         group="serving.kserve.io",
         version="v1beta1",
