@@ -2,7 +2,9 @@ import os
 import json
 import datetime
 import ssl
+import base64
 
+import yaml
 import jwt
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, Request
@@ -16,12 +18,14 @@ app = FastAPI()
 PASSWORD = os.getenv("COMMAND_PASSWORD", "commander")
 JWT_SECRET = os.getenv("JWT_SECRET", os.urandom(32).hex())
 NAMESPACE = os.getenv("NAMESPACE", "john")
+ENDPOINTS_CM = os.getenv("ENDPOINTS_CONFIGMAP", "gen-ai-aa-custom-model-endpoints")
 
 try:
     config.load_incluster_config()
 except Exception:
     config.load_kube_config()
 
+core_api = client.CoreV1Api()
 custom_api = client.CustomObjectsApi()
 
 
@@ -53,6 +57,61 @@ def login(req: LoginRequest):
     return {"token": token}
 
 
+def _load_external_endpoints() -> list[dict]:
+    try:
+        cm = core_api.read_namespaced_config_map(ENDPOINTS_CM, NAMESPACE)
+    except client.exceptions.ApiException:
+        return []
+    raw = cm.data.get("config.yaml", "")
+    if not raw:
+        return []
+    cfg = yaml.safe_load(raw)
+    providers = {p["provider_id"]: p for p in cfg.get("providers", {}).get("inference", [])}
+    endpoints = []
+    for model in cfg.get("registered_resources", {}).get("models", []):
+        provider = providers.get(model.get("provider_id"))
+        if not provider:
+            continue
+        base_url = provider.get("config", {}).get("base_url", "").rstrip("/")
+        meta = model.get("metadata", {})
+        display = meta.get("display_name", model.get("model_id", ""))
+        secret_ref = provider.get("config", {}).get("custom_gen_ai", {}).get("api_key", {}).get("secretRef", {})
+        api_key = None
+        if secret_ref.get("name"):
+            try:
+                secret = core_api.read_namespaced_secret(secret_ref["name"], NAMESPACE)
+                key_field = secret_ref.get("key", "api_key")
+                encoded = secret.data.get(key_field, "")
+                api_key = base64.b64decode(encoded).decode() if encoded else None
+            except client.exceptions.ApiException:
+                pass
+        endpoints.append({
+            "name": model.get("provider_id"),
+            "display": display,
+            "description": model.get("model_id", ""),
+            "ready": True,
+            "type": "external",
+            "base_url": base_url,
+            "model_id": model.get("model_id", ""),
+            "api_key": api_key,
+        })
+    return endpoints
+
+
+_external_cache: list[dict] = []
+_external_cache_time: float = 0
+
+
+def _get_external_endpoints() -> list[dict]:
+    global _external_cache, _external_cache_time
+    import time
+    now = time.time()
+    if now - _external_cache_time > 60:
+        _external_cache = _load_external_endpoints()
+        _external_cache_time = now
+    return _external_cache
+
+
 @app.get("/api/models", dependencies=[Depends(verify_token)])
 def list_models():
     isvcs = custom_api.list_namespaced_custom_object(
@@ -70,7 +129,9 @@ def list_models():
         conditions = isvc.get("status", {}).get("conditions", [])
         ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions)
         url = isvc.get("status", {}).get("address", {}).get("url", "")
-        models.append({"name": name, "display": display, "description": description, "ready": ready, "url": url})
+        models.append({"name": name, "display": display, "description": description, "ready": ready, "type": "kserve", "url": url})
+    for ep in _get_external_endpoints():
+        models.append({"name": ep["name"], "display": ep["display"], "description": ep["description"], "ready": ep["ready"], "type": "external"})
     return {"models": models}
 
 
@@ -103,14 +164,22 @@ async def chat_completions(request: Request):
     if not model_endpoint:
         raise HTTPException(status_code=400, detail="model_endpoint required")
 
-    base_url = _get_model_url(model_endpoint)
-    body.setdefault("model", "default")
-    stream = body.get("stream", False)
+    ext = next((ep for ep in _get_external_endpoints() if ep["name"] == model_endpoint), None)
+    if ext:
+        chat_url = ext["base_url"].rstrip("/") + "/chat/completions"
+        body["model"] = ext["model_id"]
+        headers = {"Content-Type": "application/json"}
+        if ext.get("api_key"):
+            headers["Authorization"] = f"Bearer {ext['api_key']}"
+    else:
+        chat_url = _get_model_url(model_endpoint) + "/v1/chat/completions"
+        body.setdefault("model", "default")
+        headers = {"Content-Type": "application/json"}
+        sa_token = _get_sa_token()
+        if sa_token:
+            headers["Authorization"] = f"Bearer {sa_token}"
 
-    headers = {"Content-Type": "application/json"}
-    sa_token = _get_sa_token()
-    if sa_token:
-        headers["Authorization"] = f"Bearer {sa_token}"
+    stream = body.get("stream", False)
 
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
@@ -122,7 +191,7 @@ async def chat_completions(request: Request):
         async def generate():
             try:
                 async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
-                    async with c.stream("POST", f"{base_url}/v1/chat/completions", json=body, headers=headers) as resp:
+                    async with c.stream("POST", chat_url, json=body, headers=headers) as resp:
                         if resp.status_code != 200:
                             error_text = (await resp.aread()).decode("utf-8", errors="replace")
                             yield f"data: {json.dumps({'error': {'message': error_text, 'code': resp.status_code}})}\n\ndata: [DONE]\n\n"
@@ -137,7 +206,7 @@ async def chat_completions(request: Request):
         return StreamingResponse(generate(), media_type="text/event-stream")
 
     async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
-        resp = await c.post(f"{base_url}/v1/chat/completions", json=body, headers=headers)
+        resp = await c.post(chat_url, json=body, headers=headers)
         return resp.json()
 
 

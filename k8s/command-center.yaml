@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: command-center
+  namespace: john
+  labels:
+    app: command-center
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: command-center
+  template:
+    metadata:
+      labels:
+        app: command-center
+    spec:
+      serviceAccountName: command-center
+      containers:
+        - name: web
+          image: quay.io/jgoh/command-center:latest
+          imagePullPolicy: Always
+          env:
+            - name: COMMAND_PASSWORD
+              value: commander
+            - name: NAMESPACE
+              value: john
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: command-center
+  namespace: john
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: command-center
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: command-center
+  namespace: john
+  annotations:
+    haproxy.router.openshift.io/timeout: 300s
+spec:
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: command-center
