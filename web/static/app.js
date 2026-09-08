@@ -105,6 +105,16 @@ async function loadModels() {
   }
 }
 
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebar-backdrop').classList.toggle('open');
+}
+
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('open');
+}
+
 function selectModel(m) {
   activeModel = m.name;
   activeModelCaps = m.capabilities || [];
@@ -117,6 +127,7 @@ function selectModel(m) {
   document.getElementById('chat-input').focus();
   document.getElementById('btn-directive').style.display = '';
   updateAttachButton();
+  closeSidebar();
   renderMessages();
 }
 
@@ -631,6 +642,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-refresh').addEventListener('click', loadModels);
   document.getElementById('btn-clear').addEventListener('click', clearChat);
   document.getElementById('btn-logout').addEventListener('click', logout);
+  document.getElementById('btn-sidebar-toggle').addEventListener('click', toggleSidebar);
+  document.getElementById('sidebar-backdrop').addEventListener('click', closeSidebar);
 
   if (token) {
     fetch(`${API}/api/models`, { headers: authHeaders() })

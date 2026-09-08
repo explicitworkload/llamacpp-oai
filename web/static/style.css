@@ -977,8 +977,70 @@ body::after {
   box-shadow: 0 0 15px var(--green-glow);
 }
 
+/* Sidebar Toggle (hidden on desktop) */
+.btn-sidebar-toggle {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-family: inherit;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-sidebar-toggle:hover {
+  border-color: var(--green-dim);
+  color: var(--green);
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
-  .sidebar { width: 200px; }
+  .btn-sidebar-toggle { display: flex; }
+
+  .sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 260px;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop.open {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+  }
+
+  .app-body { position: relative; }
+
   .message { max-width: 95%; }
+
+  .chat-header { padding: 12px 12px; }
+  .chat-input-area { padding: 12px; }
+  .chat-messages { padding: 12px; }
+
+  .top-bar { padding: 0 12px; }
+  .top-bar-logo { font-size: 11px; letter-spacing: 2px; }
 }
