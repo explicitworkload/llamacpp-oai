@@ -12,3 +12,4 @@ weights/
 .env
 .venv/
 venv/
+scripts/

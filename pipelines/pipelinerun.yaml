@@ -1,0 +1,20 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: vision-ai-build-
+  namespace: visionai
+spec:
+  pipelineRef:
+    name: vision-ai-build
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+    - name: registry-creds
+      secret:
+        secretName: quay-push-secret

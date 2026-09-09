@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vision-ai
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/explicitworkload/llamacpp-oai.git
+    targetRevision: experiment/vision-ai
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: visionai
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

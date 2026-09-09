@@ -3,7 +3,7 @@ FROM registry.access.redhat.com/ubi9/python-312
 USER 0
 
 RUN dnf install -y --nodocs \
-        libgl1 glib2 \
+        mesa-libGL glib2 \
     && dnf clean all
 
 USER 1001
