@@ -34,18 +34,10 @@ class RTSPCamera:
         with self._lock:
             return self._frame.copy() if self._frame is not None else None
 
-    def _build_gst_pipeline(self) -> str:
-        return (
-            f"rtspsrc location={self.rtsp_url} latency=100 drop-on-latency=true ! "
-            "rtph264depay ! h264parse ! avdec_h264 ! "
-            "videoconvert ! video/x-raw,format=BGR ! "
-            "appsink drop=true max-buffers=1 sync=false"
-        )
-
     def _capture_loop(self):
         while self._running:
-            pipeline = self._build_gst_pipeline()
-            cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+            cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
             if not cap.isOpened():
                 self._connected = False
