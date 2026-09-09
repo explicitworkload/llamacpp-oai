@@ -56,8 +56,8 @@ spec:
         - name: IMAGE
           value: $(params.serving-image)
         - name: DOCKERFILE
-          value: ./Dockerfile
-        - name: TLSVERIFY
+          value: Dockerfile
+        - name: TLS_VERIFY
           value: "false"
       workspaces:
         - name: source
@@ -81,8 +81,8 @@ spec:
         - name: IMAGE
           value: $(params.app-image)
         - name: DOCKERFILE
-          value: ./app/Dockerfile
-        - name: TLSVERIFY
+          value: app/Dockerfile
+        - name: TLS_VERIFY
           value: "false"
       workspaces:
         - name: source
