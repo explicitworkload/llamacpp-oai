@@ -13,10 +13,10 @@ spec:
       default: experiment/vision-ai
     - name: serving-image
       type: string
-      default: quay.io/jgoh/vision-ai:latest
+      default: registry-quay-app.quay.svc.cluster.local/visionai/visionai:latest
     - name: app-image
       type: string
-      default: quay.io/jgoh/visionai-app:latest
+      default: registry-quay-app.quay.svc.cluster.local/visionai/visionai-app:latest
   workspaces:
     - name: source
     - name: registry-creds
