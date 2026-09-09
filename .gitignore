@@ -1,1 +1,14 @@
 .claude/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.onnx
+*.pt
+*.pth
+weights/
+.env
+.venv/
+venv/

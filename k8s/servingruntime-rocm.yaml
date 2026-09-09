@@ -1,0 +1,42 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: onnxruntime-migraphx
+  namespace: john
+  annotations:
+    openshift.io/display-name: "ONNX Runtime MIGraphX"
+    openshift.io/description: "ONNX Runtime with MIGraphX graph compiler for AMD GPU inference"
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  supportedModelFormats:
+    - name: onnx
+      version: "1"
+      autoSelect: false
+  protocolVersions:
+    - v2
+    - grpc-v2
+  multiModel: false
+  containers:
+    - name: kserve-container
+      image: quay.io/jgoh/vision-ai:latest
+      args:
+        - --model_path=/mnt/models
+        - --grpc_port=8001
+        - --http_port=8080
+        - --providers=MIGraphXExecutionProvider,CPUExecutionProvider
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      resources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+          amd.com/gpu: "1"
+        limits:
+          cpu: "2"
+          memory: 4Gi
+          amd.com/gpu: "1"
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true

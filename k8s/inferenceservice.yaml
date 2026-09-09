@@ -1,0 +1,91 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: rf-detr
+  namespace: john
+  annotations:
+    modelFormat: onnx
+    opendatahub.io/connection-path: /models/rf-detr/inference_model.onnx
+    opendatahub.io/connections: models-odf-s3
+    opendatahub.io/hardware-profile-name: default-profile
+    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/model-type: object-detection
+    openshift.io/display-name: "RF-DETR Object Detection"
+    openshift.io/description: "RF-DETR Base ONNX model for real-time object detection (COCO 80 classes)"
+    security.opendatahub.io/enable-auth: "true"
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    networking.kserve.io/visibility: exposed
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    automountServiceAccountToken: false
+    deploymentStrategy:
+      type: Recreate
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: onnx
+      name: ""
+      protocolVersion: v2
+      resources:
+        requests:
+          cpu: "2"
+          memory: 2Gi
+          amd.com/gpu: "1"
+        limits:
+          cpu: "2"
+          memory: 4Gi
+          amd.com/gpu: "1"
+      runtime: onnxruntime-migraphx
+      storage:
+        key: models-odf-s3
+        path: /models/rf-detr/inference_model.onnx
+    serviceAccountName: models-odf-s3-sa
+    timeout: 300
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: sam2
+  namespace: john
+  annotations:
+    modelFormat: onnx
+    opendatahub.io/connection-path: /models/sam2/sam2_hiera_small.onnx
+    opendatahub.io/connections: models-odf-s3
+    opendatahub.io/hardware-profile-name: cpu-only
+    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/model-type: segmentation
+    openshift.io/display-name: "SAM2 Segmentation"
+    openshift.io/description: "Segment Anything Model 2 for instance segmentation masks"
+    security.opendatahub.io/enable-auth: "true"
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    networking.kserve.io/visibility: exposed
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    automountServiceAccountToken: false
+    deploymentStrategy:
+      type: Recreate
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: onnx
+      name: ""
+      protocolVersion: v2
+      resources:
+        requests:
+          cpu: "2"
+          memory: 2Gi
+        limits:
+          cpu: "4"
+          memory: 4Gi
+      runtime: ovms
+      storage:
+        key: models-odf-s3
+        path: /models/sam2/sam2_hiera_small.onnx
+    serviceAccountName: models-odf-s3-sa
+    timeout: 300
