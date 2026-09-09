@@ -18,7 +18,7 @@ spec:
       serviceAccountName: models-odf-s3-sa
       containers:
         - name: vision-ai
-          image: quay.io/jgoh/visionai-app:latest
+          image: registry-quay-app.quay.svc.cluster.local/visionai/visionai-app:latest
           imagePullPolicy: Always
           env:
             - name: INFERENCE_URL
@@ -37,7 +37,7 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              cpu: 200m
+              cpu: 200m`
               memory: 256Mi
             limits:
               cpu: "1"
