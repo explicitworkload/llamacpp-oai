@@ -18,7 +18,7 @@ spec:
       serviceAccountName: models-odf-s3-sa
       containers:
         - name: vision-ai
-          image: registry-quay-app.quay.svc.cluster.local/visionai/visionai-app:latest
+          image: registry-quay.quay.svc.cluster.local/visionai/visionai-app:latest
           imagePullPolicy: Always
           env:
             - name: INFERENCE_URL
