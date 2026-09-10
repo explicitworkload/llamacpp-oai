@@ -31,7 +31,10 @@ spec:
             - name: SAM2_MODEL_NAME
               value: sam2
             - name: RTSP_URL
-              value: rtsp://172.16.199.110:554/stream1
+              valueFrom:
+                secretKeyRef:
+                  name: rtsp-credentials
+                  key: RTSP_URL
             - name: CONF_THRESHOLD
               value: "0.25"
           ports:
