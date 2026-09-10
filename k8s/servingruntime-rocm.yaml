@@ -19,7 +19,7 @@ spec:
   multiModel: false
   containers:
     - name: kserve-container
-      image: quay.io/jgoh/vision-ai:latest
+      image: registry-quay-app.quay.svc.cluster.local/visionai/visionai:latest
       args:
         - --model_path=/mnt/models
         - --grpc_port=8001
