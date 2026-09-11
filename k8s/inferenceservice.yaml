@@ -52,7 +52,7 @@ metadata:
   namespace: john
   annotations:
     modelFormat: onnx
-    opendatahub.io/connection-path: /models/sam2/sam2_hiera_small.onnx
+    opendatahub.io/connection-path: /models/sam2_hiera_small.encoder.onnx
     opendatahub.io/connections: models-odf-s3
     opendatahub.io/hardware-profile-name: cpu-only
     opendatahub.io/hardware-profile-namespace: redhat-ods-applications
@@ -83,9 +83,9 @@ spec:
         limits:
           cpu: "4"
           memory: 4Gi
-      runtime: ovms
+      runtime: onnxruntime-migraphx
       storage:
         key: models-odf-s3
-        path: /models/sam2_hiera_small.onnx
+        path: /models/sam2_hiera_small.encoder.onnx
     serviceAccountName: models-odf-s3-sa
     timeout: 300
