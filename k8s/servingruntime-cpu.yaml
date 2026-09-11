@@ -19,7 +19,7 @@ spec:
   multiModel: false
   containers:
     - name: kserve-container
-      image: quay.apps.snuc.kubernetes.day/visionai/visionai:latest
+      image: quay.apps.snuc.kubernetes.day/visionai/visionai:cpu
       args:
         - --model_path=/mnt/models
         - --grpc_port=8001
