@@ -80,12 +80,10 @@ spec:
         requests:
           cpu: "2"
           memory: 2Gi
-          amd.com/gpu: "0"
         limits:
           cpu: "4"
           memory: 4Gi
-          amd.com/gpu: "0"
-      runtime: onnxruntime-migraphx
+      runtime: onnxruntime-cpu
       storage:
         key: models-odf-s3
         path: /models/sam2_hiera_small.encoder.onnx

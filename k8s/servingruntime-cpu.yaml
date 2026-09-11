@@ -1,0 +1,40 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: onnxruntime-cpu
+  namespace: john
+  annotations:
+    openshift.io/display-name: "ONNX Runtime CPU"
+    openshift.io/description: "ONNX Runtime with CPU execution provider for inference without GPU"
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  supportedModelFormats:
+    - name: onnx
+      version: "1"
+      autoSelect: false
+  protocolVersions:
+    - v2
+    - grpc-v2
+  multiModel: false
+  containers:
+    - name: kserve-container
+      image: quay.apps.snuc.kubernetes.day/visionai/visionai:latest
+      args:
+        - --model_path=/mnt/models
+        - --grpc_port=8001
+        - --http_port=8080
+        - --providers=CPUExecutionProvider
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      resources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
