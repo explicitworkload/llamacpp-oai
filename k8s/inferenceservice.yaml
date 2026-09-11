@@ -41,7 +41,7 @@ spec:
       runtime: onnxruntime-migraphx
       storage:
         key: models-odf-s3
-        path: /models/rf-detr/inference_model.onnx
+        path: /models/inference_model.onnx
     serviceAccountName: models-odf-s3-sa
     timeout: 300
 ---
@@ -86,6 +86,6 @@ spec:
       runtime: ovms
       storage:
         key: models-odf-s3
-        path: /models/sam2/sam2_hiera_small.onnx
+        path: /models/sam2_hiera_small.onnx
     serviceAccountName: models-odf-s3-sa
     timeout: 300
