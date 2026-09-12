@@ -9,6 +9,8 @@ spec:
     repoURL: https://github.com/explicitworkload/llamacpp-oai.git
     targetRevision: experiment/vision-ai
     path: pipelines
+    directory:
+      exclude: quay-secret.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: visionai
