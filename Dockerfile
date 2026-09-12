@@ -8,4 +8,4 @@ COPY serve.py /opt/serve.py
 
 EXPOSE 8080
 
-ENTRYPOINT ["python", "/opt/serve.py"]
+ENTRYPOINT ["python3", "/opt/serve.py"]
