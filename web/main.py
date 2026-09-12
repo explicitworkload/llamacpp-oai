@@ -19,6 +19,7 @@ PASSWORD = os.getenv("COMMAND_PASSWORD", "commander")
 JWT_SECRET = os.getenv("JWT_SECRET", os.urandom(32).hex())
 NAMESPACE = os.getenv("NAMESPACE", "john")
 ENDPOINTS_CM = os.getenv("ENDPOINTS_CONFIGMAP", "gen-ai-aa-custom-model-endpoints")
+VISION_AI_URL = os.getenv("VISION_AI_URL", "http://vision-ai.john.svc.cluster.local:8080")
 
 try:
     config.load_incluster_config()
@@ -130,7 +131,8 @@ def list_models():
         conditions = isvc.get("status", {}).get("conditions", [])
         ready = any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions)
         url = isvc.get("status", {}).get("address", {}).get("url", "")
-        models.append({"name": name, "display": display, "description": description, "ready": ready, "type": "kserve", "url": url, "capabilities": []})
+        model_type = annotations.get("opendatahub.io/model-type", "")
+        models.append({"name": name, "display": display, "description": description, "ready": ready, "type": "kserve", "url": url, "capabilities": [], "model_type": model_type})
     for ep in _get_external_endpoints():
         models.append({"name": ep["name"], "display": ep["display"], "description": ep["description"], "ready": ep["ready"], "type": "external", "capabilities": ep.get("capabilities", [])})
     return {"models": models}
@@ -238,6 +240,53 @@ async def transcribe_audio(file: UploadFile, model_endpoint: str = Form(...)):
         if resp.status_code != 200:
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
         return resp.json()
+
+
+def verify_token_or_query(request: Request):
+    auth = request.headers.get("Authorization", "")
+    query_token = request.query_params.get("token")
+    tok = None
+    if auth.startswith("Bearer "):
+        tok = auth[7:]
+    elif query_token:
+        tok = query_token
+    if not tok:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        jwt.decode(tok, JWT_SECRET, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@app.get("/api/vision/stream", dependencies=[Depends(verify_token_or_query)])
+async def vision_stream():
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
+
+    async def proxy():
+        async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
+            async with c.stream("GET", f"{VISION_AI_URL}/stream") as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+
+    return StreamingResponse(proxy(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/api/vision/health", dependencies=[Depends(verify_token)])
+async def vision_health():
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    try:
+        async with httpx.AsyncClient(verify=ssl_ctx, timeout=5.0) as c:
+            resp = await c.get(f"{VISION_AI_URL}/health")
+            return resp.json()
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

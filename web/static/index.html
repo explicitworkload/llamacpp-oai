@@ -75,7 +75,19 @@
         <div class="chat-messages" id="chat-messages">
           <div class="no-model-selected">SELECT A UNIT TO BEGIN</div>
         </div>
-        <div class="chat-input-area">
+        <div class="vision-feed" id="vision-feed" style="display:none">
+          <div class="vision-stream-container">
+            <img id="vision-stream" alt="Vision AI Stream">
+            <div class="vision-overlay" id="vision-overlay">
+              <div class="vision-status" id="vision-status">CONNECTING TO FEED...</div>
+            </div>
+          </div>
+          <div class="vision-bar">
+            <span class="vision-label">LIVE INFERENCE FEED</span>
+            <span class="vision-indicator" id="vision-indicator"></span>
+          </div>
+        </div>
+        <div class="chat-input-area" id="chat-input-area">
           <input type="file" id="file-input" multiple hidden>
           <div class="attachment-strip" id="attachment-strip"></div>
           <div class="chat-input-row">

@@ -2,6 +2,7 @@ const API = '';
 const DEFAULT_DIRECTIVE = 'You are a military intelligence specialist in doctrine.';
 let token = localStorage.getItem('cmd_token');
 let activeModel = null;
+let activeModelType = null;
 let messages = [];
 let generating = false;
 let activeModelCaps = [];
@@ -116,8 +117,13 @@ function closeSidebar() {
   document.getElementById('sidebar-backdrop').classList.remove('open');
 }
 
+function isVisionModel(modelType) {
+  return modelType === 'object-detection';
+}
+
 function selectModel(m) {
   activeModel = m.name;
+  activeModelType = m.model_type || '';
   activeModelCaps = m.capabilities || [];
   attachments = [];
   renderAttachments();
@@ -125,11 +131,53 @@ function selectModel(m) {
     el.classList.toggle('active', el.dataset.name === m.name);
   });
   document.getElementById('chat-target').textContent = `CHANNEL: ${(m.display || m.name).toUpperCase()}`;
-  document.getElementById('chat-input').focus();
-  document.getElementById('btn-directive').style.display = '';
-  updateAttachButton();
   closeSidebar();
-  renderMessages();
+
+  if (isVisionModel(activeModelType)) {
+    showVisionFeed();
+  } else {
+    hideVisionFeed();
+    document.getElementById('chat-input').focus();
+    document.getElementById('btn-directive').style.display = '';
+    updateAttachButton();
+    renderMessages();
+  }
+}
+
+function showVisionFeed() {
+  document.getElementById('chat-messages').style.display = 'none';
+  document.getElementById('chat-input-area').style.display = 'none';
+  document.getElementById('btn-directive').style.display = 'none';
+  const feed = document.getElementById('vision-feed');
+  feed.style.display = 'flex';
+  const stream = document.getElementById('vision-stream');
+  const overlay = document.getElementById('vision-overlay');
+  const indicator = document.getElementById('vision-indicator');
+  const status = document.getElementById('vision-status');
+
+  overlay.style.display = 'flex';
+  status.textContent = 'CONNECTING TO FEED...';
+  indicator.className = 'vision-indicator connecting';
+
+  stream.onload = () => {
+    overlay.style.display = 'none';
+    indicator.className = 'vision-indicator live';
+  };
+  stream.onerror = () => {
+    overlay.style.display = 'flex';
+    status.textContent = 'FEED UNAVAILABLE';
+    indicator.className = 'vision-indicator offline';
+  };
+  stream.src = `${API}/api/vision/stream?token=${token}`;
+}
+
+function hideVisionFeed() {
+  const feed = document.getElementById('vision-feed');
+  feed.style.display = 'none';
+  const stream = document.getElementById('vision-stream');
+  stream.src = '';
+  document.getElementById('chat-messages').style.display = '';
+  document.getElementById('chat-input-area').style.display = '';
 }
 
 function getDirective(modelName) {
