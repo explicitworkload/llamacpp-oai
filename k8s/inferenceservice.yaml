@@ -5,7 +5,7 @@ metadata:
   namespace: john
   annotations:
     modelFormat: onnx
-    opendatahub.io/connection-path: /models/rf-detr/inference_model.onnx
+    opendatahub.io/connection-path: /models/inference_model.onnx
     opendatahub.io/connections: models-odf-s3
     opendatahub.io/hardware-profile-name: default-profile
     opendatahub.io/hardware-profile-namespace: redhat-ods-applications
