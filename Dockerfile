@@ -1,6 +1,6 @@
 FROM docker.io/rocm/migraphx-ci-ubuntu:latest
 
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --ignore-installed \
         --extra-index-url https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4/ \
         onnxruntime-rocm kserve numpy
 
