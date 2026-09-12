@@ -117,3 +117,25 @@ spec:
           workspace: source
         - name: dockerconfig
           workspace: registry-creds
+
+    - name: restart-rollouts
+      runAfter:
+        - build-serving
+        - build-serving-cpu
+        - build-app
+      taskSpec:
+        steps:
+          - name: rollout-restart
+            image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+            script: |
+              #!/usr/bin/env bash
+              set -e
+              echo "Restarting deployments in john namespace..."
+              kubectl rollout restart deployment/vision-ai -n john
+              kubectl rollout restart deployment/rf-detr-predictor -n john || echo "rf-detr-predictor not found, skipping"
+              kubectl rollout restart deployment/sam2-predictor -n john || echo "sam2-predictor not found, skipping"
+              echo "Waiting for rollouts to complete..."
+              kubectl rollout status deployment/vision-ai -n john --timeout=120s
+              kubectl rollout status deployment/rf-detr-predictor -n john --timeout=300s || true
+              kubectl rollout status deployment/sam2-predictor -n john --timeout=300s || true
+              echo "Rollout restarts complete."
