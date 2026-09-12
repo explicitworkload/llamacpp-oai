@@ -4,6 +4,9 @@ metadata:
   name: onnxruntime-migraphx
   namespace: john
   annotations:
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/template-name: onnxruntime-migraphx
+    opendatahub.io/template-display-name: "ONNX Runtime MIGraphX"
     openshift.io/display-name: "ONNX Runtime MIGraphX"
     openshift.io/description: "ONNX Runtime with MIGraphX graph compiler for AMD GPU inference"
   labels:
