@@ -126,7 +126,7 @@ spec:
       taskSpec:
         steps:
           - name: rollout-restart
-            image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+            image: registry.redhat.io/openshift4/ose-cli:latest
             script: |
               #!/usr/bin/env bash
               set -e
