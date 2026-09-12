@@ -8,13 +8,8 @@ spec:
     name: vision-ai-build
   workspaces:
     - name: source
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 20Gi
+      persistentVolumeClaim:
+        claimName: vision-ai-build-source
     - name: registry-creds
       secret:
         secretName: quay-push-secret
