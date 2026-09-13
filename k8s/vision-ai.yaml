@@ -23,11 +23,11 @@ spec:
           imagePullPolicy: Always
           env:
             - name: INFERENCE_URL
-              value: https://rf-detr-predictor.john.svc.cluster.local:8443
+              value: rf-detr-grpc.john.svc.cluster.local:8081
             - name: MODEL_NAME
               value: model
             - name: SAM2_URL
-              value: https://sam2-predictor.john.svc.cluster.local:8443
+              value: sam2-grpc.john.svc.cluster.local:8081
             - name: SAM2_MODEL_NAME
               value: model
             - name: RTSP_URL

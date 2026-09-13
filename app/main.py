@@ -14,14 +14,13 @@ from app.detector import KServeDetector, draw_detections
 from app.segmenter import KServeSegmenter
 from app.camera import RTSPCamera
 
-INFERENCE_URL = os.getenv("INFERENCE_URL", "https://rf-detr-john.apps.example.com")
-MODEL_NAME = os.getenv("MODEL_NAME", "rf-detr")
-SAM2_URL = os.getenv("SAM2_URL", "https://sam2-john.apps.example.com")
-SAM2_MODEL_NAME = os.getenv("SAM2_MODEL_NAME", "sam2")
+INFERENCE_URL = os.getenv("INFERENCE_URL", "rf-detr-grpc.john.svc.cluster.local:8081")
+MODEL_NAME = os.getenv("MODEL_NAME", "model")
+SAM2_URL = os.getenv("SAM2_URL", "sam2-grpc.john.svc.cluster.local:8081")
+SAM2_MODEL_NAME = os.getenv("SAM2_MODEL_NAME", "model")
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.16.199.110/stream1")
 INPUT_SIZE = int(os.getenv("INPUT_SIZE", "560"))
 CONF_THRESHOLD = float(os.getenv("CONF_THRESHOLD", "0.25"))
-SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 detector: KServeDetector | None = None
 segmenter: KServeSegmenter | None = None
@@ -32,14 +31,6 @@ _last_masks: list[np.ndarray] | None = None
 _inference_lock = threading.Lock()
 _inference_thread: threading.Thread | None = None
 _inference_running = False
-
-
-def _get_sa_token() -> str | None:
-    try:
-        with open(SA_TOKEN_PATH) as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return None
 
 
 def _detect_and_segment(frame: np.ndarray) -> tuple[list[dict], list[np.ndarray] | None, float]:
@@ -80,18 +71,15 @@ def _inference_loop():
 async def lifespan(app: FastAPI):
     global detector, segmenter, camera, _inference_thread, _inference_running
 
-    token = _get_sa_token()
     detector = KServeDetector(
         inference_url=INFERENCE_URL,
         model_name=MODEL_NAME,
         input_size=(INPUT_SIZE, INPUT_SIZE),
         conf_threshold=CONF_THRESHOLD,
-        token=token,
     )
     segmenter = KServeSegmenter(
         inference_url=SAM2_URL,
         model_name=SAM2_MODEL_NAME,
-        token=token,
     )
 
     camera = RTSPCamera(RTSP_URL)

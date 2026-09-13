@@ -75,4 +75,7 @@ if __name__ == "__main__":
     model_name = os.environ.get("MODEL_NAME", "model")
     model = ONNXModel(model_name, args.model_path, providers)
     model.load()
-    kserve.ModelServer(http_port=args.http_port).start([model])
+    kserve.ModelServer(
+        http_port=args.http_port,
+        grpc_port=args.grpc_port,
+    ).start([model])

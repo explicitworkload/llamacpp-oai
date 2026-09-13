@@ -1,8 +1,8 @@
 import time
 
 import cv2
-import httpx
 import numpy as np
+import tritonclient.grpc as grpcclient
 
 
 COCO_CLASSES = [
@@ -35,7 +35,7 @@ class KServeDetector:
         self.input_size = input_size
         self.conf_threshold = conf_threshold
         self.token = token
-        self._client = httpx.Client(verify=False, timeout=30.0)
+        self._client = grpcclient.InferenceServerClient(url=inference_url)
 
     def preprocess(self, image: np.ndarray) -> tuple[np.ndarray, tuple[int, int]]:
         orig_h, orig_w = image.shape[:2]
@@ -86,44 +86,33 @@ class KServeDetector:
     def detect(self, image: np.ndarray) -> tuple[list[dict], float]:
         blob, orig_size = self.preprocess(image)
 
-        payload = {
-            "inputs": [{
-                "name": "pixel_values",
-                "shape": list(blob.shape),
-                "datatype": "FP32",
-                "data": blob.flatten().tolist(),
-            }]
-        }
+        inputs = [grpcclient.InferInput("pixel_values", list(blob.shape), "FP32")]
+        inputs[0].set_data_from_numpy(blob)
 
-        headers = {"Content-Type": "application/json"}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-
-        url = f"{self.inference_url}/v2/models/{self.model_name}/infer"
+        outputs = [
+            grpcclient.InferRequestedOutput("pred_boxes"),
+            grpcclient.InferRequestedOutput("logits"),
+        ]
 
         t0 = time.perf_counter()
-        resp = self._client.post(url, json=payload, headers=headers)
+        result = self._client.infer(
+            model_name=self.model_name,
+            inputs=inputs,
+            outputs=outputs,
+        )
         inference_ms = (time.perf_counter() - t0) * 1000
 
-        resp.raise_for_status()
-        result = resp.json()
+        output_dict = {
+            "pred_boxes": result.as_numpy("pred_boxes"),
+            "logits": result.as_numpy("logits"),
+        }
 
-        outputs = {}
-        for out in result["outputs"]:
-            data = np.array(out["data"], dtype=np.float32).reshape(out["shape"])
-            outputs[out["name"]] = data
-
-        detections = self.postprocess(outputs, orig_size)
+        detections = self.postprocess(output_dict, orig_size)
         return detections, inference_ms
 
     def is_ready(self) -> bool:
         try:
-            url = f"{self.inference_url}/v2/models/{self.model_name}/ready"
-            headers = {}
-            if self.token:
-                headers["Authorization"] = f"Bearer {self.token}"
-            resp = self._client.get(url, headers=headers)
-            return resp.status_code == 200
+            return self._client.is_model_ready(self.model_name)
         except Exception:
             return False
 
