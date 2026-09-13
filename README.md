@@ -5,26 +5,26 @@ Real-time object detection and instance segmentation pipeline for OpenShift AI. 
 ## Architecture
 
 ```
-┌──────────────┐    RTSP     ┌───────────────┐   KServe V2   ┌─────────────────────┐
+┌──────────────┐    RTSP     ┌───────────────┐  gRPC :8001   ┌─────────────────────┐
 │  TP-Link     │ ──────────▶ │  visionai-app │ ────────────▶ │  RF-DETR (KServe)   │
 │  VIGI S245   │             │  (FastAPI)    │               │  Object Detection   │
-│  RTSP Camera │             │               │               └─────────────────────┘
-└──────────────┘             │  OpenCV       │   KServe V2   ┌─────────────────────┐
-                             │  capture +    │ ────────────▶ │  SAM2 (KServe)      │
-                             │  annotation   │               │  Segmentation Masks │
-                             └───────────────┘               └─────────────────────┘
-                                    │
-                                    ▼
+│  RTSP Camera │             │               │               │  AMD GPU / ROCm     │
+└──────────────┘             │  OpenCV       │  gRPC :8001   └─────────────────────┘
+                             │  capture +    │ ────────────▶ ┌─────────────────────┐
+                             │  annotation   │               │  SAM2 (KServe)      │
+                             └───────────────┘               │  Segmentation Masks │
+                                    │                        │  CPU                │
+                                    ▼                        └─────────────────────┘
                              Annotated MJPEG stream / snapshots / JSON API
 ```
 
 ## Components
 
-### ServingRuntime - ROCm/GPU (`Dockerfile`)
+### ServingRuntime - ROCm/GPU (`Dockerfile` + `Dockerfile.rocm-base`)
 
-Custom KServe ServingRuntime image with ONNX Runtime + ROCm for AMD GPU.
+Custom KServe ServingRuntime image with ONNX Runtime + ROCm for AMD GPU. Uses a two-tier build: `Dockerfile.rocm-base` builds a heavy base image (~8.4 GB) with ROCm and ONNX Runtime, and `Dockerfile` adds a thin layer with `serve.py`.
 
-- **Base**: `rocm/migraphx-ci-ubuntu`
+- **Base**: `rocm/migraphx-ci-ubuntu` (via `Dockerfile.rocm-base`)
 - **Runtime**: ONNX Runtime with `ROCMExecutionProvider` (ROCm 6.4)
 
 ### ServingRuntime - CPU (`Dockerfile.cpu`)
@@ -39,7 +39,7 @@ CPU-only KServe ServingRuntime image with ONNX Runtime.
 FastAPI application that captures RTSP frames and calls KServe inference endpoints.
 
 - **Base**: Red Hat UBI9
-- **Dependencies**: OpenCV, httpx, numpy, FastAPI
+- **Dependencies**: OpenCV, tritonclient[grpc], numpy, FastAPI
 
 ## Models
 
@@ -163,14 +163,15 @@ Apply the ArgoCD Applications to sync manifests from Git:
 
 ```bash
 oc apply -f argocd/application.yaml            # Watches k8s/ directory
-oc apply -f argocd/application-pipelines.yaml   # Watches pipelines/ directory
 ```
 
 ArgoCD will automatically deploy:
 - ServingRuntimes (ROCm and CPU)
 - InferenceServices (RF-DETR and SAM2)
 - Vision AI app deployment, service, and route
-- Tekton Pipeline definition and triggers
+- gRPC bypass services for direct pod access
+
+Tekton pipeline resources in `pipelines/` are applied manually (not managed by ArgoCD).
 
 ### 9. Configure GitHub webhook
 
@@ -194,32 +195,35 @@ This builds all three images (`:latest`, `:cpu`, `visionai-app:latest`) and rest
 ## Project Structure
 
 ```
-Dockerfile                  # ServingRuntime image (ROCm + ONNX Runtime)
+Dockerfile                  # ServingRuntime image (thin layer on rocm-base)
+Dockerfile.rocm-base        # ROCm base image (~8.4 GB, ROCm + ONNX Runtime)
 Dockerfile.cpu              # ServingRuntime image (CPU + ONNX Runtime)
 serve.py                    # KServe model server (shared by both runtimes)
+requirements.txt            # Python dependencies for visionai-app
 app/
   Dockerfile                # App image (UBI9 + OpenCV + FastAPI)
   main.py                   # FastAPI server and endpoints
-  detector.py               # RF-DETR KServe client + annotation rendering
-  segmenter.py              # SAM2 KServe client
+  detector.py               # RF-DETR KServe gRPC client + annotation rendering
+  segmenter.py              # SAM2 KServe gRPC client
   camera.py                 # Threaded RTSP capture
-  requirements.txt          # Python dependencies
 k8s/
   servingruntime-rocm.yaml  # KServe ServingRuntime CR (onnxruntime-migraphx)
   servingruntime-cpu.yaml   # KServe ServingRuntime CR (onnxruntime-cpu)
   inferenceservice.yaml     # KServe InferenceServices (RF-DETR + SAM2)
   vision-ai.yaml            # App Deployment, Service, Route
+  vision-ai-grpc.yaml       # gRPC services bypassing kube-rbac-proxy
   vision-ai-rbac.yaml       # RBAC for app SA to access InferenceServices
   pipeline-rbac.yaml        # RBAC for pipeline SA to restart deployments
 pipelines/
   pipeline.yaml             # Tekton Pipeline (clone, build x3, restart-rollouts)
-  pipelinerun.yaml          # Manual PipelineRun template
+  pipelinerun.yaml          # Manual PipelineRun template (volumeClaimTemplate)
+  build-rocm-base.yaml      # Separate pipeline for ROCm base image builds
   triggers.yaml             # EventListener, TriggerBinding, TriggerTemplate, Route
   quay-secret.yaml          # Quay push secret placeholder (do NOT commit real creds)
-  workspace-pvc.yaml        # Shared PVC (unused, pipeline uses volumeClaimTemplate)
+scripts/
+  download-models.sh        # Download ONNX models for local testing
 argocd/
   application.yaml          # ArgoCD Application for k8s/ manifests
-  application-pipelines.yaml # ArgoCD Application for pipelines/ manifests
 ```
 
 ## Configuration
@@ -228,12 +232,12 @@ The vision-ai app is configured via environment variables in `k8s/vision-ai.yaml
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INFERENCE_URL` | `https://rf-detr-predictor.<ns>.svc.cluster.local:8443` | RF-DETR predictor endpoint (HTTPS via kube-rbac-proxy) |
+| `INFERENCE_URL` | `rf-detr-grpc.<ns>.svc.cluster.local:8001` | RF-DETR gRPC endpoint (direct, bypasses kube-rbac-proxy) |
 | `MODEL_NAME` | `model` | KServe model name for detection |
-| `SAM2_URL` | `https://sam2-predictor.<ns>.svc.cluster.local:8443` | SAM2 predictor endpoint (HTTPS via kube-rbac-proxy) |
+| `SAM2_URL` | `sam2-grpc.<ns>.svc.cluster.local:8001` | SAM2 gRPC endpoint (direct, bypasses kube-rbac-proxy) |
 | `SAM2_MODEL_NAME` | `model` | KServe model name for segmentation |
 | `RTSP_URL` | (from secret) | RTSP camera URL (via `rtsp-credentials` secret) |
-| `INPUT_SIZE` | `640` | Detection model input resolution |
+| `INPUT_SIZE` | `560` | Detection model input resolution |
 | `CONF_THRESHOLD` | `0.25` | Minimum confidence for detections |
 
 ## CI/CD
@@ -252,10 +256,9 @@ Each pipeline run creates an ephemeral PVC via `volumeClaimTemplate` that is cle
 
 ### ArgoCD
 
-Two ArgoCD Applications watch the `experiment/vision-ai` branch:
+One ArgoCD Application watches the `experiment/vision-ai` branch:
 
 - `vision-ai` - syncs `k8s/` manifests (auto-sync, prune, self-heal)
-- `vision-ai-pipelines` - syncs `pipelines/` manifests (excludes `quay-secret.yaml`)
 
 ### Manual build
 
