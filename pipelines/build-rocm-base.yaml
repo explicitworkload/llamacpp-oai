@@ -1,0 +1,35 @@
+apiVersion: tekton.dev/v1
+kind: TaskRun
+metadata:
+  generateName: build-rocm-base-
+  namespace: visionai
+spec:
+  taskRef:
+    resolver: cluster
+    params:
+      - name: kind
+        value: task
+      - name: name
+        value: buildah
+      - name: namespace
+        value: openshift-pipelines
+  params:
+    - name: IMAGE
+      value: registry-quay-app.quay.svc.cluster.local/visionai/visionai:rocm-base
+    - name: DOCKERFILE
+      value: ./Dockerfile.rocm-base
+    - name: TLS_VERIFY
+      value: "false"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: ocs-storagecluster-ceph-rbd
+          resources:
+            requests:
+              storage: 20Gi
+    - name: dockerconfig
+      secret:
+        secretName: quay-push-secret

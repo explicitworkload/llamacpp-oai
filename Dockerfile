@@ -1,11 +1,5 @@
-FROM docker.io/rocm/migraphx-ci-ubuntu:latest
-
-RUN pip install --no-cache-dir --ignore-installed \
-        --extra-index-url https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4/ \
-        onnxruntime-rocm kserve numpy
+FROM registry-quay-app.quay.svc.cluster.local/visionai/visionai:rocm-base
 
 COPY serve.py /opt/serve.py
-
-EXPOSE 8080
 
 ENTRYPOINT ["python3", "/opt/serve.py"]
