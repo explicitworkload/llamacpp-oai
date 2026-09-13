@@ -41,7 +41,8 @@ class ONNXModel(kserve.Model):
                 "datatype": _numpy_dtype_to_kserve(results[i].dtype),
                 "data": results[i].flatten().tolist(),
             })
-        return {"model_name": self.name, "outputs": outputs}
+        response_id = payload.id if isinstance(payload, InferRequest) and payload.id else "1"
+        return {"id": response_id, "model_name": self.name, "outputs": outputs}
 
 
 DTYPE_MAP = {
