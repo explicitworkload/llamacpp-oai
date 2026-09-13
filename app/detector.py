@@ -47,8 +47,8 @@ class KServeDetector:
     def postprocess(self, outputs: dict, orig_size: tuple[int, int]) -> list[dict]:
         orig_w, orig_h = orig_size
 
-        dets = outputs["pred_boxes"]
-        logits = outputs["logits"]
+        dets = outputs["pred_boxes"].squeeze(0)
+        logits = outputs["logits"].squeeze(0)
 
         scores = _sigmoid(logits)
 
