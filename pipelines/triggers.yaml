@@ -44,14 +44,8 @@ spec:
             value: $(tt.params.git-revision)
         workspaces:
           - name: source
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: ocs-storagecluster-ceph-rbd
-                resources:
-                  requests:
-                    storage: 20Gi
+            persistentVolumeClaim:
+              claimName: vision-ai-build-source
           - name: registry-creds
             secret:
               secretName: quay-push-secret
