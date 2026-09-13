@@ -268,10 +268,13 @@ async def vision_stream():
     timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
 
     async def proxy():
-        async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
-            async with c.stream("GET", f"{VISION_AI_URL}/stream") as resp:
-                async for chunk in resp.aiter_bytes():
-                    yield chunk
+        try:
+            async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
+                async with c.stream("GET", f"{VISION_AI_URL}/stream") as resp:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+        except (httpx.RemoteProtocolError, httpx.ReadError, GeneratorExit):
+            return
 
     return StreamingResponse(proxy(), media_type="multipart/x-mixed-replace; boundary=frame")
 
