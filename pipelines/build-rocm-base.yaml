@@ -1,25 +1,75 @@
 apiVersion: tekton.dev/v1
-kind: TaskRun
+kind: Pipeline
+metadata:
+  name: build-rocm-base
+  namespace: visionai
+spec:
+  params:
+    - name: git-url
+      type: string
+      default: https://github.com/explicitworkload/llamacpp-oai.git
+    - name: git-revision
+      type: string
+      default: experiment/vision-ai
+    - name: image
+      type: string
+      default: registry-quay-app.quay.svc.cluster.local/visionai/visionai:rocm-base
+  workspaces:
+    - name: source
+    - name: registry-creds
+  tasks:
+    - name: clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: URL
+          value: $(params.git-url)
+        - name: REVISION
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: source
+
+    - name: build
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: openshift-pipelines
+      runAfter:
+        - clone
+      params:
+        - name: IMAGE
+          value: $(params.image)
+        - name: DOCKERFILE
+          value: ./Dockerfile.rocm-base
+        - name: TLS_VERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: registry-creds
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
 metadata:
   generateName: build-rocm-base-
   namespace: visionai
 spec:
-  taskRef:
-    resolver: cluster
-    params:
-      - name: kind
-        value: task
-      - name: name
-        value: buildah
-      - name: namespace
-        value: openshift-pipelines
-  params:
-    - name: IMAGE
-      value: registry-quay-app.quay.svc.cluster.local/visionai/visionai:rocm-base
-    - name: DOCKERFILE
-      value: ./Dockerfile.rocm-base
-    - name: TLS_VERIFY
-      value: "false"
+  pipelineRef:
+    name: build-rocm-base
   workspaces:
     - name: source
       volumeClaimTemplate:
@@ -30,6 +80,6 @@ spec:
           resources:
             requests:
               storage: 20Gi
-    - name: dockerconfig
+    - name: registry-creds
       secret:
         secretName: quay-push-secret
