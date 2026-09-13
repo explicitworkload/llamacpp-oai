@@ -40,8 +40,11 @@ def _detect_and_segment(frame: np.ndarray) -> tuple[list[dict], list[np.ndarray]
     masks = None
     seg_ms = 0.0
     if detections and segmenter and segmenter.is_ready():
-        boxes = [d["bbox"] for d in detections]
-        masks, seg_ms = segmenter.segment(frame, boxes)
+        try:
+            boxes = [d["bbox"] for d in detections]
+            masks, seg_ms = segmenter.segment(frame, boxes)
+        except Exception:
+            pass
     return detections, masks, det_ms + seg_ms
 
 
