@@ -126,7 +126,7 @@ spec:
       taskSpec:
         steps:
           - name: rollout-restart
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: bitnami/kubectl:latest
             script: |
               #!/usr/bin/env bash
               set -e
