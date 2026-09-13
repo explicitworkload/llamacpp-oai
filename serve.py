@@ -5,7 +5,7 @@ import os
 import kserve
 import numpy as np
 import onnxruntime as ort
-from kserve.protocol.infer_type import InferRequest
+from kserve.protocol.infer_type import InferInput as KServeInferInput, InferOutput, InferRequest, InferResponse
 
 
 class ONNXModel(kserve.Model):
@@ -22,7 +22,7 @@ class ONNXModel(kserve.Model):
         self.session = ort.InferenceSession(model_files[0], providers=self.providers)
         self.ready = True
 
-    def predict(self, payload: InferRequest | dict, headers: dict | None = None) -> dict:
+    def predict(self, payload: InferRequest | dict, headers: dict | None = None) -> InferResponse | dict:
         inputs = {}
         if isinstance(payload, InferRequest):
             for inp in payload.inputs:
@@ -33,6 +33,24 @@ class ONNXModel(kserve.Model):
                 inputs[inp["name"]] = np.array(inp["data"]).reshape(inp["shape"]).astype(dtype)
 
         results = self.session.run(None, inputs)
+        response_id = payload.id if isinstance(payload, InferRequest) and payload.id else "1"
+
+        if isinstance(payload, InferRequest):
+            infer_outputs = []
+            for i, meta in enumerate(self.session.get_outputs()):
+                output = InferOutput(
+                    name=meta.name,
+                    shape=list(results[i].shape),
+                    datatype=_numpy_dtype_to_kserve(results[i].dtype),
+                )
+                output.set_data_from_numpy(results[i])
+                infer_outputs.append(output)
+            return InferResponse(
+                response_id=response_id,
+                model_name=self.name,
+                infer_outputs=infer_outputs,
+            )
+
         outputs = []
         for i, meta in enumerate(self.session.get_outputs()):
             outputs.append({
@@ -41,7 +59,6 @@ class ONNXModel(kserve.Model):
                 "datatype": _numpy_dtype_to_kserve(results[i].dtype),
                 "data": results[i].flatten().tolist(),
             })
-        response_id = payload.id if isinstance(payload, InferRequest) and payload.id else "1"
         return {"id": response_id, "model_name": self.name, "outputs": outputs}
 
 

@@ -104,13 +104,9 @@ app = FastAPI(title="Vision AI", lifespan=lifespan)
 def health():
     return {
         "status": "ok",
-        "detector_ready": detector.is_ready() if detector else False,
-        "segmenter_ready": segmenter.is_ready() if segmenter else False,
         "camera_connected": camera.connected if camera else False,
-        "inference_url": INFERENCE_URL,
-        "model_name": MODEL_NAME,
-        "sam2_url": SAM2_URL,
-        "rtsp_url": RTSP_URL,
+        "inference_running": _inference_running,
+        "has_detections": len(_last_detections) > 0,
     }
 
 
