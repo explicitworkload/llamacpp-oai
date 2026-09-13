@@ -1,5 +1,6 @@
 import io
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -26,6 +27,12 @@ detector: KServeDetector | None = None
 segmenter: KServeSegmenter | None = None
 camera: RTSPCamera | None = None
 
+_last_detections: list[dict] = []
+_last_masks: list[np.ndarray] | None = None
+_inference_lock = threading.Lock()
+_inference_thread: threading.Thread | None = None
+_inference_running = False
+
 
 def _get_sa_token() -> str | None:
     try:
@@ -48,9 +55,30 @@ def _detect_and_segment(frame: np.ndarray) -> tuple[list[dict], list[np.ndarray]
     return detections, masks, det_ms + seg_ms
 
 
+def _inference_loop():
+    global _last_detections, _last_masks, _inference_running
+    while _inference_running:
+        if camera is None or not camera.connected or detector is None:
+            time.sleep(0.5)
+            continue
+
+        frame = camera.get_frame()
+        if frame is None:
+            time.sleep(0.1)
+            continue
+
+        try:
+            detections, masks, _ = _detect_and_segment(frame)
+            with _inference_lock:
+                _last_detections = detections
+                _last_masks = masks
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global detector, segmenter, camera
+    global detector, segmenter, camera, _inference_thread, _inference_running
 
     token = _get_sa_token()
     detector = KServeDetector(
@@ -69,8 +97,15 @@ async def lifespan(app: FastAPI):
     camera = RTSPCamera(RTSP_URL)
     camera.start()
 
+    _inference_running = True
+    _inference_thread = threading.Thread(target=_inference_loop, daemon=True)
+    _inference_thread.start()
+
     yield
 
+    _inference_running = False
+    if _inference_thread:
+        _inference_thread.join(timeout=5)
     camera.stop()
 
 
@@ -160,9 +195,12 @@ def mjpeg_stream(annotate: bool = True):
                 time.sleep(0.1)
                 continue
 
-            if annotate and detector is not None:
-                detections, masks, _ = _detect_and_segment(frame)
-                frame = draw_detections(frame, detections, masks)
+            if annotate:
+                with _inference_lock:
+                    detections = list(_last_detections)
+                    masks = _last_masks
+                if detections:
+                    frame = draw_detections(frame, detections, masks)
 
             _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
             yield (
