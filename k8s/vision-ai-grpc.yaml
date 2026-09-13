@@ -8,8 +8,8 @@ spec:
     app: isvc.rf-detr-predictor
   ports:
     - name: grpc
-      port: 8081
-      targetPort: 8081
+      port: 8001
+      targetPort: 8001
 ---
 apiVersion: v1
 kind: Service
@@ -21,5 +21,5 @@ spec:
     app: isvc.sam2-predictor
   ports:
     - name: grpc
-      port: 8081
-      targetPort: 8081
+      port: 8001
+      targetPort: 8001

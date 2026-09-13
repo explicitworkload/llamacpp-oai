@@ -14,9 +14,9 @@ from app.detector import KServeDetector, draw_detections
 from app.segmenter import KServeSegmenter
 from app.camera import RTSPCamera
 
-INFERENCE_URL = os.getenv("INFERENCE_URL", "rf-detr-grpc.john.svc.cluster.local:8081")
+INFERENCE_URL = os.getenv("INFERENCE_URL", "rf-detr-grpc.john.svc.cluster.local:8001")
 MODEL_NAME = os.getenv("MODEL_NAME", "model")
-SAM2_URL = os.getenv("SAM2_URL", "sam2-grpc.john.svc.cluster.local:8081")
+SAM2_URL = os.getenv("SAM2_URL", "sam2-grpc.john.svc.cluster.local:8001")
 SAM2_MODEL_NAME = os.getenv("SAM2_MODEL_NAME", "model")
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.16.199.110/stream1")
 INPUT_SIZE = int(os.getenv("INPUT_SIZE", "560"))
