@@ -5,7 +5,7 @@ import os
 import kserve
 import numpy as np
 import onnxruntime as ort
-from kserve.protocol.rest.v2_datamodels import InferenceRequest
+from kserve.protocol.infer_type import InferRequest
 
 
 class ONNXModel(kserve.Model):
@@ -22,14 +22,15 @@ class ONNXModel(kserve.Model):
         self.session = ort.InferenceSession(model_files[0], providers=self.providers)
         self.ready = True
 
-    def predict(self, payload: InferenceRequest | dict, headers: dict | None = None) -> dict:
-        if isinstance(payload, InferenceRequest):
-            payload = payload.model_dump()
-
+    def predict(self, payload: InferRequest | dict, headers: dict | None = None) -> dict:
         inputs = {}
-        for inp in payload.get("inputs", []):
-            dtype = _kserve_dtype_to_numpy(inp.get("datatype", "FP32"))
-            inputs[inp["name"]] = np.array(inp["data"]).reshape(inp["shape"]).astype(dtype)
+        if isinstance(payload, InferRequest):
+            for inp in payload.inputs:
+                inputs[inp.name] = inp.as_numpy()
+        else:
+            for inp in payload.get("inputs", []):
+                dtype = _kserve_dtype_to_numpy(inp.get("datatype", "FP32"))
+                inputs[inp["name"]] = np.array(inp["data"]).reshape(inp["shape"]).astype(dtype)
 
         results = self.session.run(None, inputs)
         outputs = []
