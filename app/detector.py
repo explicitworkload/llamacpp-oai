@@ -47,10 +47,10 @@ class KServeDetector:
     def postprocess(self, outputs: dict, orig_size: tuple[int, int]) -> list[dict]:
         orig_w, orig_h = orig_size
 
-        dets = outputs["dets"]
-        labels = outputs["labels"]
+        dets = outputs["pred_boxes"]
+        logits = outputs["logits"]
 
-        scores = _sigmoid(labels)
+        scores = _sigmoid(logits)
 
         max_scores = scores.max(axis=1)
         class_ids = scores.argmax(axis=1)
@@ -88,7 +88,7 @@ class KServeDetector:
 
         payload = {
             "inputs": [{
-                "name": "images",
+                "name": "pixel_values",
                 "shape": list(blob.shape),
                 "datatype": "FP32",
                 "data": blob.flatten().tolist(),
