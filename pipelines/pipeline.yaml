@@ -62,6 +62,8 @@ spec:
           value: ./Dockerfile
         - name: TLS_VERIFY
           value: "false"
+        - name: BUILD_EXTRA_ARGS
+          value: "--pull=newer"
       workspaces:
         - name: source
           workspace: source
@@ -87,6 +89,8 @@ spec:
           value: ./Dockerfile.cpu
         - name: TLS_VERIFY
           value: "false"
+        - name: BUILD_EXTRA_ARGS
+          value: "--pull=newer"
       workspaces:
         - name: source
           workspace: source
@@ -112,6 +116,8 @@ spec:
           value: ./app/Dockerfile
         - name: TLS_VERIFY
           value: "false"
+        - name: BUILD_EXTRA_ARGS
+          value: "--pull=newer"
       workspaces:
         - name: source
           workspace: source
