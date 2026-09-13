@@ -27,7 +27,7 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
 
 class KServeDetector:
     def __init__(self, inference_url: str, model_name: str,
-                 input_size: tuple[int, int] = (640, 640),
+                 input_size: tuple[int, int] = (560, 560),
                  conf_threshold: float = 0.25,
                  token: str | None = None):
         self.inference_url = inference_url.rstrip("/")

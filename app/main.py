@@ -18,7 +18,7 @@ MODEL_NAME = os.getenv("MODEL_NAME", "rf-detr")
 SAM2_URL = os.getenv("SAM2_URL", "https://sam2-john.apps.example.com")
 SAM2_MODEL_NAME = os.getenv("SAM2_MODEL_NAME", "sam2")
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.16.199.110/stream1")
-INPUT_SIZE = int(os.getenv("INPUT_SIZE", "640"))
+INPUT_SIZE = int(os.getenv("INPUT_SIZE", "560"))
 CONF_THRESHOLD = float(os.getenv("CONF_THRESHOLD", "0.25"))
 SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
