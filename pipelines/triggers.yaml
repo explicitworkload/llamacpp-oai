@@ -13,7 +13,7 @@ spec:
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
-  name: vision-ai-build-template
+  name: vision-ai-yolox-build-template
   namespace: visionai
 spec:
   params:
@@ -23,11 +23,11 @@ spec:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
       metadata:
-        generateName: vision-ai-build-
+        generateName: vision-ai-yolox-build-
         namespace: visionai
       spec:
         pipelineRef:
-          name: vision-ai-build
+          name: vision-ai-yolox-build
         params:
           - name: git-url
             value: $(tt.params.git-url)
@@ -73,11 +73,11 @@ spec:
             kind: ClusterInterceptor
           params:
             - name: filter
-              value: body.ref == 'refs/heads/experiment/vision-ai'
+              value: body.ref == 'refs/heads/experiment/vision-ai-yolox'
       bindings:
         - ref: github-push-binding
       template:
-        ref: vision-ai-build-template
+        ref: vision-ai-yolox-build-template
 ---
 apiVersion: route.openshift.io/v1
 kind: Route

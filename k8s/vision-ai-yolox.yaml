@@ -1,34 +1,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vision-ai
+  name: vision-ai-yolox
   namespace: john
   labels:
-    app: vision-ai
+    app: vision-ai-yolox
 spec:
   replicas: 1
   revisionHistoryLimit: 3
   selector:
     matchLabels:
-      app: vision-ai
+      app: vision-ai-yolox
   template:
     metadata:
       labels:
-        app: vision-ai
+        app: vision-ai-yolox
     spec:
       serviceAccountName: models-odf-s3-sa
       containers:
-        - name: vision-ai
+        - name: vision-ai-yolox
           image: quay.apps.snuc.kubernetes.day/visionai/visionai-app:latest
           imagePullPolicy: Always
           env:
             - name: INFERENCE_URL
               value: yolo26-grpc.john.svc.cluster.local:8001
             - name: MODEL_NAME
-              value: model
-            - name: SAM2_URL
-              value: sam2-grpc.john.svc.cluster.local:8001
-            - name: SAM2_MODEL_NAME
               value: model
             - name: RTSP_URL
               valueFrom:
@@ -71,7 +67,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: vision-ai
+  name: vision-ai-yolox
   namespace: john
 spec:
   ports:
@@ -79,12 +75,12 @@ spec:
       port: 8080
       targetPort: 8080
   selector:
-    app: vision-ai
+    app: vision-ai-yolox
 ---
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: vision-ai
+  name: vision-ai-yolox
   namespace: john
   annotations:
     haproxy.router.openshift.io/timeout: 300s
@@ -96,4 +92,4 @@ spec:
     insecureEdgeTerminationPolicy: Redirect
   to:
     kind: Service
-    name: vision-ai
+    name: vision-ai-yolox

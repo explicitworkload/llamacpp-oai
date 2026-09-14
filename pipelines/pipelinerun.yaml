@@ -1,11 +1,11 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: vision-ai-build-
+  generateName: vision-ai-yolox-build-
   namespace: visionai
 spec:
   pipelineRef:
-    name: vision-ai-build
+    name: vision-ai-yolox-build
   workspaces:
     - name: source
       volumeClaimTemplate:

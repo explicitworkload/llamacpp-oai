@@ -1,13 +1,13 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vision-ai
+  name: vision-ai-yolox
   namespace: openshift-gitops
 spec:
   project: default
   source:
     repoURL: https://github.com/explicitworkload/llamacpp-oai.git
-    targetRevision: experiment/vision-ai
+    targetRevision: experiment/vision-ai-yolox
     path: k8s
   destination:
     server: https://kubernetes.default.svc
