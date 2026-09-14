@@ -30,6 +30,7 @@ camera: RTSPCamera | None = None
 _detectors: dict[str, KServeDetector] = {}
 _default_model: str | None = None
 _model_detections: dict[str, list[dict]] = {}
+_model_masks: dict[str, list[np.ndarray] | None] = {}
 _inference_lock = threading.Lock()
 _inference_threads: list[threading.Thread] = []
 _inference_running = False
@@ -47,9 +48,10 @@ def _inference_loop(model_name: str, detector: KServeDetector):
             continue
 
         try:
-            detections, _ = detector.detect(frame)
+            detections, masks, _ = detector.detect(frame)
             with _inference_lock:
                 _model_detections[model_name] = detections
+                _model_masks[model_name] = masks
         except Exception:
             pass
 
@@ -78,6 +80,7 @@ async def lifespan(app: FastAPI):
             excluded_classes=EXCLUDED_CLASSES,
         )
         _model_detections[name] = []
+        _model_masks[name] = None
 
     _default_model = next(iter(_detectors))
 
@@ -131,13 +134,14 @@ async def detect_image(file: UploadFile, model: str = None):
     image = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-    detections, det_ms = detector.detect(image)
+    detections, masks, det_ms = detector.detect(image)
 
     return {
         "model": name,
         "detections": detections,
         "inference_ms": round(det_ms, 1),
         "image_size": [image.shape[1], image.shape[0]],
+        "segmentation": masks is not None,
     }
 
 
@@ -151,13 +155,14 @@ def detect_camera(model: str = None):
     if frame is None:
         raise HTTPException(status_code=503, detail="No frame available")
 
-    detections, det_ms = detector.detect(frame)
+    detections, masks, det_ms = detector.detect(frame)
 
     return {
         "model": name,
         "detections": detections,
         "inference_ms": round(det_ms, 1),
         "image_size": [frame.shape[1], frame.shape[0]],
+        "segmentation": masks is not None,
     }
 
 
@@ -174,8 +179,9 @@ def snapshot(annotate: bool = True, model: str = None):
         name, _ = _get_detector(model)
         with _inference_lock:
             detections = list(_model_detections.get(name, []))
+            masks = _model_masks.get(name)
         if detections:
-            frame = draw_detections(frame, detections, None)
+            frame = draw_detections(frame, detections, masks)
 
     _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
     return StreamingResponse(io.BytesIO(jpeg.tobytes()), media_type="image/jpeg")
@@ -198,8 +204,9 @@ def mjpeg_stream(annotate: bool = True, model: str = None):
             if annotate:
                 with _inference_lock:
                     detections = list(_model_detections.get(name, []))
+                    masks = _model_masks.get(name)
                 if detections:
-                    frame = draw_detections(frame, detections, None)
+                    frame = draw_detections(frame, detections, masks)
 
             _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
             yield (
