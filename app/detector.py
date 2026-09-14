@@ -54,6 +54,10 @@ class KServeDetector:
 
         scores = _sigmoid(logits)
 
+        # Skip background class (index 0) for 91-class COCO output
+        if scores.shape[1] == 91:
+            scores = scores[:, 1:]
+
         max_scores = scores.max(axis=1)
         class_ids = scores.argmax(axis=1)
 
