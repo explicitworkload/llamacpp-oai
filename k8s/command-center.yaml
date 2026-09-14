@@ -25,6 +25,8 @@ spec:
               value: commander
             - name: NAMESPACE
               value: john
+            - name: VISION_AI_URL
+              value: http://vision-ai-yolox.john.svc.cluster.local:8080
           ports:
             - containerPort: 8080
           resources:
