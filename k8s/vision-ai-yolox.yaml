@@ -19,7 +19,7 @@ spec:
       serviceAccountName: models-odf-s3-sa
       containers:
         - name: vision-ai-yolox
-          image: quay.apps.snuc.kubernetes.day/visionai/visionai-app:latest
+          image: quay.apps.snuc.kubernetes.day/visionai/visionai-app:yolox
           imagePullPolicy: Always
           env:
             - name: INFERENCE_URL

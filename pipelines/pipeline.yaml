@@ -13,7 +13,7 @@ spec:
       default: experiment/vision-ai-yolox
     - name: app-image
       type: string
-      default: registry-quay-app.quay.svc.cluster.local/visionai/visionai-app:latest
+      default: registry-quay-app.quay.svc.cluster.local/visionai/visionai-app:yolox
   workspaces:
     - name: source
     - name: registry-creds
