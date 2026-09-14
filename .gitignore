@@ -1,2 +1,4 @@
 Tiltfile
 scripts/
+.claude/
+.vscode/
