@@ -238,9 +238,9 @@ The vision-ai app is configured via environment variables in `k8s/vision-ai.yaml
 | `SAM2_MODEL_NAME` | `model` | KServe model name for segmentation |
 | `RTSP_URL` | (from secret) | RTSP camera URL (via `rtsp-credentials` secret) |
 | `INPUT_SIZE` | `560` | Detection model input resolution |
-| `CONF_THRESHOLD` | `0.25` | Minimum confidence for detections |
+| `CONF_THRESHOLD` | `0.7` | Minimum confidence for detections |
 | `UNDISTORT_K1` | `0` | Barrel distortion correction coefficient (negative = correct barrel, 0 = disabled) |
-| `EXCLUDED_CLASSES` | (none) | Comma-separated COCO class names to filter from detections |
+| `EXCLUDED_CLASSES` | `bicycle,car,motorcycle,airplane,bus,train,truck,boat,traffic light,fire hydrant,stop sign,parking meter,refrigerator,tv` | Comma-separated COCO class names to filter from detections |
 
 ### Tuning `UNDISTORT_K1`
 
