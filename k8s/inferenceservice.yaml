@@ -33,12 +33,10 @@ spec:
         requests:
           cpu: "4"
           memory: 4Gi
-          amd.com/gpu: "1"
         limits:
-          cpu: "4"
+          cpu: "8"
           memory: 8Gi
-          amd.com/gpu: "1"
-      runtime: onnxruntime-migraphx
+      runtime: onnxruntime-cpu
       storage:
         key: models-odf-s3
         path: /models/yolo26l.onnx
