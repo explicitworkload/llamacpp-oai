@@ -1,0 +1,46 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: yolo26-seg
+  namespace: john
+  annotations:
+    modelFormat: onnx
+    opendatahub.io/connection-path: /models/yolo26m-seg.onnx
+    opendatahub.io/connections: models-odf-s3
+    opendatahub.io/hardware-profile-name: default-profile
+    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/model-type: object-detection
+    openshift.io/display-name: "YOLO26m Segmentation"
+    openshift.io/description: "YOLO26m-seg ONNX model with end-to-end head for real-time object detection and segmentation (COCO 80 classes)"
+    security.opendatahub.io/enable-auth: "true"
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    networking.kserve.io/visibility: exposed
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    automountServiceAccountToken: false
+    deploymentStrategy:
+      type: Recreate
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: onnx
+      name: ""
+      protocolVersion: v2
+      resources:
+        requests:
+          cpu: "2"
+          memory: 2Gi
+          amd.com/gpu: "1"
+        limits:
+          cpu: "2"
+          memory: 4Gi
+          amd.com/gpu: "1"
+      runtime: onnxruntime-migraphx
+      storage:
+        key: models-odf-s3
+        path: /models/yolo26m-seg.onnx
+    serviceAccountName: models-odf-s3-sa
+    timeout: 300
