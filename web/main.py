@@ -261,16 +261,20 @@ def verify_token_or_query(request: Request):
 
 
 @app.get("/api/vision/stream", dependencies=[Depends(verify_token_or_query)])
-async def vision_stream():
+async def vision_stream(model: str = None):
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
     timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
 
+    upstream = f"{VISION_AI_URL}/stream"
+    if model:
+        upstream += f"?model={model}"
+
     async def proxy():
         try:
             async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
-                async with c.stream("GET", f"{VISION_AI_URL}/stream") as resp:
+                async with c.stream("GET", upstream) as resp:
                     async for chunk in resp.aiter_bytes():
                         yield chunk
         except (httpx.RemoteProtocolError, httpx.ReadError, GeneratorExit):

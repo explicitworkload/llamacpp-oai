@@ -168,7 +168,7 @@ function showVisionFeed() {
     status.textContent = 'FEED UNAVAILABLE';
     indicator.className = 'vision-indicator offline';
   };
-  stream.src = `${API}/api/vision/stream?token=${token}`;
+  stream.src = `${API}/api/vision/stream?token=${token}&model=${encodeURIComponent(activeModel)}`;
 }
 
 function hideVisionFeed() {
