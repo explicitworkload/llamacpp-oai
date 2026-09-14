@@ -18,7 +18,7 @@ spec:
       serviceAccountName: command-center
       containers:
         - name: web
-          image: quay.io/jgoh/command-center:latest
+          image: quay.apps.snuc.kubernetes.day/visionai/command-center:latest
           imagePullPolicy: Always
           env:
             - name: COMMAND_PASSWORD

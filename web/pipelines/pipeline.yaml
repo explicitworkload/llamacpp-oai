@@ -1,0 +1,82 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: command-center-build
+  namespace: visionai
+spec:
+  params:
+    - name: git-url
+      type: string
+      default: https://github.com/explicitworkload/llamacpp-oai.git
+    - name: git-revision
+      type: string
+      default: main
+    - name: app-image
+      type: string
+      default: registry-quay-app.quay.svc.cluster.local/visionai/command-center:latest
+  workspaces:
+    - name: source
+    - name: registry-creds
+  tasks:
+    - name: clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: URL
+          value: $(params.git-url)
+        - name: REVISION
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: source
+
+    - name: build-app
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: openshift-pipelines
+      runAfter:
+        - clone
+      params:
+        - name: IMAGE
+          value: $(params.app-image)
+        - name: DOCKERFILE
+          value: ./web/Dockerfile
+        - name: CONTEXT
+          value: ./web
+        - name: TLS_VERIFY
+          value: "false"
+        - name: BUILD_EXTRA_ARGS
+          value: "--pull=newer"
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: registry-creds
+
+    - name: restart-rollout
+      runAfter:
+        - build-app
+      taskSpec:
+        steps:
+          - name: rollout-restart
+            image: registry.redhat.io/openshift4/ose-cli:latest
+            script: |
+              #!/usr/bin/env bash
+              set -e
+              echo "Restarting command-center deployment..."
+              kubectl rollout restart deployment/command-center -n john
+              kubectl rollout status deployment/command-center -n john --timeout=120s
+              echo "Rollout restart complete."

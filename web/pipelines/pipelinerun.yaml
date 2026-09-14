@@ -1,0 +1,21 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: command-center-build-
+  namespace: visionai
+spec:
+  pipelineRef:
+    name: command-center-build
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: ocs-storagecluster-ceph-rbd
+          resources:
+            requests:
+              storage: 20Gi
+    - name: registry-creds
+      secret:
+        secretName: quay-push-secret
