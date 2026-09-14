@@ -40,7 +40,7 @@ spec:
             - name: INPUT_SIZE
               value: "560"
             - name: UNDISTORT_K1
-              value: "-0.35"
+              value: "0"
             - name: EXCLUDED_CLASSES
               value: "bicycle,truck,boat,traffic light,fire hydrant,stop sign,parking meter,refrigerator,tv,baseball bat,baseball glove,surfboard,boat,truck"
           ports:
