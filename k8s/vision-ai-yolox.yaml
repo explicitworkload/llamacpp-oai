@@ -22,8 +22,8 @@ spec:
           image: quay.apps.snuc.kubernetes.day/visionai/visionai-app:yolox
           imagePullPolicy: Always
           env:
-            - name: INFERENCE_URL
-              value: yolo26-grpc.john.svc.cluster.local:8001
+            - name: INFERENCE_ENDPOINTS
+              value: "yolo26=yolo26-grpc.john.svc.cluster.local:8001,yolo26-seg=yolo26-seg-grpc.john.svc.cluster.local:8001"
             - name: MODEL_NAME
               value: model
             - name: RTSP_URL

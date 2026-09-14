@@ -11,48 +11,33 @@ from fastapi.responses import StreamingResponse
 from PIL import Image
 
 from app.detector import KServeDetector, draw_detections
-from app.segmenter import KServeSegmenter
 from app.camera import RTSPCamera
 
-INFERENCE_URL = os.getenv("INFERENCE_URL", "rf-detr-grpc.john.svc.cluster.local:8001")
 MODEL_NAME = os.getenv("MODEL_NAME", "model")
-SAM2_URL = os.getenv("SAM2_URL", "sam2-grpc.john.svc.cluster.local:8001")
-SAM2_MODEL_NAME = os.getenv("SAM2_MODEL_NAME", "model")
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.16.199.110/stream1")
-INPUT_SIZE = int(os.getenv("INPUT_SIZE", "560"))
+INPUT_SIZE = int(os.getenv("INPUT_SIZE", "640"))
 CONF_THRESHOLD = float(os.getenv("CONF_THRESHOLD", "0.25"))
 UNDISTORT_K1 = float(os.getenv("UNDISTORT_K1", "0"))
 _excluded_env = os.getenv("EXCLUDED_CLASSES", "")
 EXCLUDED_CLASSES = {c.strip() for c in _excluded_env.split(",") if c.strip()} if _excluded_env else set()
 
-detector: KServeDetector | None = None
-segmenter: KServeSegmenter | None = None
-camera: RTSPCamera | None = None
+# Multi-model: "yolo26=host:port,yolo26-seg=host:port"
+# Falls back to single INFERENCE_URL if not set
+INFERENCE_ENDPOINTS_ENV = os.getenv("INFERENCE_ENDPOINTS", "")
+INFERENCE_URL = os.getenv("INFERENCE_URL", "yolo26-grpc.john.svc.cluster.local:8001")
 
-_last_detections: list[dict] = []
-_last_masks: list[np.ndarray] | None = None
+camera: RTSPCamera | None = None
+_detectors: dict[str, KServeDetector] = {}
+_default_model: str | None = None
+_model_detections: dict[str, list[dict]] = {}
 _inference_lock = threading.Lock()
-_inference_thread: threading.Thread | None = None
+_inference_threads: list[threading.Thread] = []
 _inference_running = False
 
 
-def _detect_and_segment(frame: np.ndarray) -> tuple[list[dict], list[np.ndarray] | None, float]:
-    detections, det_ms = detector.detect(frame)
-    masks = None
-    seg_ms = 0.0
-    if detections and segmenter and segmenter.is_ready():
-        try:
-            boxes = [d["bbox"] for d in detections]
-            masks, seg_ms = segmenter.segment(frame, boxes)
-        except Exception:
-            pass
-    return detections, masks, det_ms + seg_ms
-
-
-def _inference_loop():
-    global _last_detections, _last_masks, _inference_running
+def _inference_loop(model_name: str, detector: KServeDetector):
     while _inference_running:
-        if camera is None or not camera.connected or detector is None:
+        if camera is None or not camera.connected:
             time.sleep(0.5)
             continue
 
@@ -62,46 +47,65 @@ def _inference_loop():
             continue
 
         try:
-            detections, masks, _ = _detect_and_segment(frame)
+            detections, _ = detector.detect(frame)
             with _inference_lock:
-                _last_detections = detections
-                _last_masks = masks
+                _model_detections[model_name] = detections
         except Exception:
             pass
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global detector, segmenter, camera, _inference_thread, _inference_running
+    global camera, _default_model, _inference_threads, _inference_running
 
-    detector = KServeDetector(
-        inference_url=INFERENCE_URL,
-        model_name=MODEL_NAME,
-        input_size=(INPUT_SIZE, INPUT_SIZE),
-        conf_threshold=CONF_THRESHOLD,
-        excluded_classes=EXCLUDED_CLASSES,
-    )
-    segmenter = KServeSegmenter(
-        inference_url=SAM2_URL,
-        model_name=SAM2_MODEL_NAME,
-    )
+    endpoints = {}
+    if INFERENCE_ENDPOINTS_ENV:
+        for entry in INFERENCE_ENDPOINTS_ENV.split(","):
+            entry = entry.strip()
+            if "=" in entry:
+                name, url = entry.split("=", 1)
+                endpoints[name.strip()] = url.strip()
+
+    if not endpoints:
+        endpoints["default"] = INFERENCE_URL
+
+    for name, url in endpoints.items():
+        _detectors[name] = KServeDetector(
+            inference_url=url,
+            model_name=MODEL_NAME,
+            input_size=(INPUT_SIZE, INPUT_SIZE),
+            conf_threshold=CONF_THRESHOLD,
+            excluded_classes=EXCLUDED_CLASSES,
+        )
+        _model_detections[name] = []
+
+    _default_model = next(iter(_detectors))
 
     camera = RTSPCamera(RTSP_URL, undistort_k1=UNDISTORT_K1)
     camera.start()
 
     _inference_running = True
-    _inference_thread = threading.Thread(target=_inference_loop, daemon=True)
-    _inference_thread.start()
+    for name, detector in _detectors.items():
+        t = threading.Thread(target=_inference_loop, args=(name, detector), daemon=True)
+        t.start()
+        _inference_threads.append(t)
 
     yield
 
     _inference_running = False
-    if _inference_thread:
-        _inference_thread.join(timeout=5)
+    for t in _inference_threads:
+        t.join(timeout=5)
     camera.stop()
 
 
 app = FastAPI(title="Vision AI", lifespan=lifespan)
+
+
+def _get_detector(model: str | None = None) -> tuple[str, KServeDetector]:
+    name = model if model and model in _detectors else _default_model
+    if name is None or name not in _detectors:
+        raise HTTPException(status_code=404, detail="No detector configured")
+    return name, _detectors[name]
 
 
 @app.get("/health")
@@ -110,33 +114,36 @@ def health():
         "status": "ok",
         "camera_connected": camera.connected if camera else False,
         "inference_running": _inference_running,
-        "has_detections": len(_last_detections) > 0,
+        "models": list(_detectors.keys()),
     }
 
 
+@app.get("/models")
+def list_models():
+    return {"models": list(_detectors.keys()), "default": _default_model}
+
+
 @app.post("/detect")
-async def detect_image(file: UploadFile):
-    if detector is None:
-        raise HTTPException(status_code=503, detail="Detector not configured")
+async def detect_image(file: UploadFile, model: str = None):
+    name, detector = _get_detector(model)
 
     contents = await file.read()
     image = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-    detections, masks, total_ms = _detect_and_segment(image)
+    detections, det_ms = detector.detect(image)
 
     return {
+        "model": name,
         "detections": detections,
-        "inference_ms": round(total_ms, 1),
+        "inference_ms": round(det_ms, 1),
         "image_size": [image.shape[1], image.shape[0]],
-        "segmentation": masks is not None,
     }
 
 
 @app.get("/detect/camera")
-def detect_camera():
-    if detector is None:
-        raise HTTPException(status_code=503, detail="Detector not configured")
+def detect_camera(model: str = None):
+    name, detector = _get_detector(model)
     if camera is None or not camera.connected:
         raise HTTPException(status_code=503, detail="Camera not connected")
 
@@ -144,18 +151,18 @@ def detect_camera():
     if frame is None:
         raise HTTPException(status_code=503, detail="No frame available")
 
-    detections, masks, total_ms = _detect_and_segment(frame)
+    detections, det_ms = detector.detect(frame)
 
     return {
+        "model": name,
         "detections": detections,
-        "inference_ms": round(total_ms, 1),
+        "inference_ms": round(det_ms, 1),
         "image_size": [frame.shape[1], frame.shape[0]],
-        "segmentation": masks is not None,
     }
 
 
 @app.get("/snapshot")
-def snapshot(annotate: bool = True):
+def snapshot(annotate: bool = True, model: str = None):
     if camera is None or not camera.connected:
         raise HTTPException(status_code=503, detail="Camera not connected")
 
@@ -163,18 +170,23 @@ def snapshot(annotate: bool = True):
     if frame is None:
         raise HTTPException(status_code=503, detail="No frame available")
 
-    if annotate and detector is not None:
-        detections, masks, _ = _detect_and_segment(frame)
-        frame = draw_detections(frame, detections, masks)
+    if annotate:
+        name, _ = _get_detector(model)
+        with _inference_lock:
+            detections = list(_model_detections.get(name, []))
+        if detections:
+            frame = draw_detections(frame, detections, None)
 
     _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
     return StreamingResponse(io.BytesIO(jpeg.tobytes()), media_type="image/jpeg")
 
 
 @app.get("/stream")
-def mjpeg_stream(annotate: bool = True):
+def mjpeg_stream(annotate: bool = True, model: str = None):
     if camera is None or not camera.connected:
         raise HTTPException(status_code=503, detail="Camera not connected")
+
+    name, _ = _get_detector(model)
 
     def generate():
         while True:
@@ -185,10 +197,9 @@ def mjpeg_stream(annotate: bool = True):
 
             if annotate:
                 with _inference_lock:
-                    detections = list(_last_detections)
-                    masks = _last_masks
+                    detections = list(_model_detections.get(name, []))
                 if detections:
-                    frame = draw_detections(frame, detections, masks)
+                    frame = draw_detections(frame, detections, None)
 
             _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
             yield (
