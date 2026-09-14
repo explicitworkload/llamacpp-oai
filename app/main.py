@@ -197,6 +197,5 @@ def mjpeg_stream(annotate: bool = True):
                 + jpeg.tobytes()
                 + b"\r\n"
             )
-            time.sleep(0.033)
 
     return StreamingResponse(generate(), media_type="multipart/x-mixed-replace; boundary=frame")
