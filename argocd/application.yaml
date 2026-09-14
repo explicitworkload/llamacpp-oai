@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/explicitworkload/llamacpp-oai.git
-    targetRevision: experiment/vision-ai
+    targetRevision: experiment/vision-ai-yolox
     path: k8s
   destination:
     server: https://kubernetes.default.svc

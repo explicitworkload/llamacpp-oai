@@ -10,7 +10,7 @@ spec:
       default: https://github.com/explicitworkload/llamacpp-oai.git
     - name: git-revision
       type: string
-      default: experiment/vision-ai
+      default: experiment/vision-ai-yolox
     - name: image
       type: string
       default: registry-quay-app.quay.svc.cluster.local/visionai/visionai:rocm-base

@@ -73,7 +73,7 @@ spec:
             kind: ClusterInterceptor
           params:
             - name: filter
-              value: body.ref == 'refs/heads/experiment/vision-ai'
+              value: body.ref == 'refs/heads/experiment/vision-ai-yolox'
       bindings:
         - ref: github-push-binding
       template:
