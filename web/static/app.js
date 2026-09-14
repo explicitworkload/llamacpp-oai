@@ -264,12 +264,17 @@ async function handleVisionVideoUpload(file) {
   let videoUrl = `${API}/api/vision/video`;
   if (activeModel) videoUrl += `?model=${encodeURIComponent(activeModel)}`;
 
+  const controller = new AbortController();
+  const uploadTimeout = setTimeout(() => controller.abort(), 120000);
+
   try {
     const res = await fetch(videoUrl, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: fd,
+      signal: controller.signal,
     });
+    clearTimeout(uploadTimeout);
     if (res.status === 401) { logout(); return; }
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
@@ -289,9 +294,11 @@ async function handleVisionVideoUpload(file) {
     visionMode = 'video';
     label.textContent = 'VIDEO INFERENCE FEED';
   } catch (err) {
+    clearTimeout(uploadTimeout);
     console.error('Video upload error:', err);
     overlay.style.display = 'flex';
-    status.textContent = 'VIDEO UPLOAD FAILED: ' + (err.message || 'Unknown error');
+    const msg = err.name === 'AbortError' ? 'UPLOAD TIMED OUT' : 'VIDEO UPLOAD FAILED: ' + (err.message || 'Unknown error');
+    status.textContent = msg;
     indicator.className = 'vision-indicator offline';
   }
 }

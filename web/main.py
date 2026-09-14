@@ -307,12 +307,14 @@ async def vision_video_upload(request: Request, model: str = None):
     upstream = f"{VISION_AI_URL}/video/upload"
     if model:
         upstream += f"?model={model}"
+
+    body = await request.body()
     content_type = request.headers.get("content-type", "")
 
     async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
         resp = await c.post(
             upstream,
-            content=request.stream(),
+            content=body,
             headers={"Content-Type": content_type},
         )
         if resp.status_code != 200:
@@ -366,12 +368,14 @@ async def vision_detect_annotate(request: Request, model: str = None):
     upstream = f"{VISION_AI_URL}/detect/annotate"
     if model:
         upstream += f"?model={model}"
+
+    body = await request.body()
     content_type = request.headers.get("content-type", "")
 
     async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
         resp = await c.post(
             upstream,
-            content=request.stream(),
+            content=body,
             headers={"Content-Type": content_type},
         )
         if resp.status_code != 200:
