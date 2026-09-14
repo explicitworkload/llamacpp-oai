@@ -5,13 +5,13 @@ metadata:
   namespace: john
   annotations:
     modelFormat: onnx
-    opendatahub.io/connection-path: /models/yolo26l.onnx
+    opendatahub.io/connection-path: /models/yolo26m-pose.onnx
     opendatahub.io/connections: models-odf-s3
     opendatahub.io/hardware-profile-name: default-profile
     opendatahub.io/hardware-profile-namespace: redhat-ods-applications
     opendatahub.io/model-type: object-detection
-    openshift.io/display-name: "YOLO26l Object Detection"
-    openshift.io/description: "YOLO26l ONNX model with end-to-end head for real-time object detection (COCO 80 classes)"
+    openshift.io/display-name: "YOLO26m Pose Estimation"
+    openshift.io/description: "YOLO26m-pose ONNX model with end-to-end head for real-time pose estimation (COCO 80 classes)"
     security.opendatahub.io/enable-auth: "true"
     serving.kserve.io/deploymentMode: Standard
   labels:
@@ -39,6 +39,6 @@ spec:
       runtime: onnxruntime-cpu
       storage:
         key: models-odf-s3
-        path: /models/yolo26l.onnx
+        path: /models/yolo26m-pose.onnx
     serviceAccountName: models-odf-s3-sa
     timeout: 300
