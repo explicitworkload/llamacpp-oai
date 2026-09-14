@@ -227,7 +227,10 @@ async function handleVisionImageUpload(file) {
       body: fd,
     });
     if (res.status === 401) { logout(); return; }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(detail || `HTTP ${res.status}`);
+    }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -239,8 +242,9 @@ async function handleVisionImageUpload(file) {
     visionMode = 'image';
     label.textContent = 'UPLOADED IMAGE — INFERENCE RESULT';
   } catch (err) {
+    console.error('Image upload error:', err);
     overlay.style.display = 'flex';
-    status.textContent = 'UPLOAD FAILED';
+    status.textContent = 'UPLOAD FAILED: ' + (err.message || 'Unknown error');
     indicator.className = 'vision-indicator offline';
   }
 }
@@ -263,7 +267,10 @@ async function handleVisionVideoUpload(file) {
       body: fd,
     });
     if (res.status === 401) { logout(); return; }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(detail || `HTTP ${res.status}`);
+    }
 
     stream.onload = () => {
       overlay.style.display = 'none';
@@ -278,8 +285,9 @@ async function handleVisionVideoUpload(file) {
     visionMode = 'video';
     label.textContent = 'VIDEO INFERENCE FEED';
   } catch (err) {
+    console.error('Video upload error:', err);
     overlay.style.display = 'flex';
-    status.textContent = 'VIDEO UPLOAD FAILED';
+    status.textContent = 'VIDEO UPLOAD FAILED: ' + (err.message || 'Unknown error');
     indicator.className = 'vision-indicator offline';
   }
 }
