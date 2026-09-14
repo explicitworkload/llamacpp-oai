@@ -218,10 +218,12 @@ async function handleVisionImageUpload(file) {
 
   const fd = new FormData();
   fd.append('file', file);
-  if (activeModel) fd.append('model', activeModel);
+
+  let detectUrl = `${API}/api/vision/detect/annotate`;
+  if (activeModel) detectUrl += `?model=${encodeURIComponent(activeModel)}`;
 
   try {
-    const res = await fetch(`${API}/api/vision/detect/annotate`, {
+    const res = await fetch(detectUrl, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: fd,
@@ -258,10 +260,12 @@ async function handleVisionVideoUpload(file) {
 
   const fd = new FormData();
   fd.append('file', file);
-  if (activeModel) fd.append('model', activeModel);
+
+  let videoUrl = `${API}/api/vision/video`;
+  if (activeModel) videoUrl += `?model=${encodeURIComponent(activeModel)}`;
 
   try {
-    const res = await fetch(`${API}/api/vision/video`, {
+    const res = await fetch(videoUrl, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: fd,

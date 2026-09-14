@@ -298,19 +298,23 @@ async def vision_health():
 
 
 @app.post("/api/vision/video", dependencies=[Depends(verify_token)])
-async def vision_video_upload(file: UploadFile, model: str = Form(None)):
+async def vision_video_upload(request: Request, model: str = None):
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
     timeout = httpx.Timeout(connect=60.0, read=300.0, write=300.0, pool=30.0)
 
-    video_bytes = await file.read()
+    upstream = f"{VISION_AI_URL}/video/upload"
+    if model:
+        upstream += f"?model={model}"
+    content_type = request.headers.get("content-type", "")
+
     async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
-        files = {"file": (file.filename, video_bytes, file.content_type)}
-        data = {}
-        if model:
-            data["model"] = model
-        resp = await c.post(f"{VISION_AI_URL}/video/upload", files=files, data=data)
+        resp = await c.post(
+            upstream,
+            content=request.stream(),
+            headers={"Content-Type": content_type},
+        )
         if resp.status_code != 200:
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
         return resp.json()
@@ -353,19 +357,23 @@ async def vision_video_delete():
 
 
 @app.post("/api/vision/detect/annotate", dependencies=[Depends(verify_token)])
-async def vision_detect_annotate(file: UploadFile, model: str = Form(None)):
+async def vision_detect_annotate(request: Request, model: str = None):
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
     timeout = httpx.Timeout(connect=60.0, read=300.0, write=30.0, pool=30.0)
 
-    image_bytes = await file.read()
+    upstream = f"{VISION_AI_URL}/detect/annotate"
+    if model:
+        upstream += f"?model={model}"
+    content_type = request.headers.get("content-type", "")
+
     async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
-        files = {"file": (file.filename, image_bytes, file.content_type)}
-        data = {}
-        if model:
-            data["model"] = model
-        resp = await c.post(f"{VISION_AI_URL}/detect/annotate", files=files, data=data)
+        resp = await c.post(
+            upstream,
+            content=request.stream(),
+            headers={"Content-Type": content_type},
+        )
         if resp.status_code != 200:
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
         return StreamingResponse(io.BytesIO(resp.content), media_type="image/jpeg")
