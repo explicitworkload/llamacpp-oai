@@ -42,7 +42,7 @@ spec:
             - name: UNDISTORT_K1
               value: "0"
             - name: EXCLUDED_CLASSES
-              value: "bicycle,car,motorcycle,airplane,bus,train,truck,boat,traffic light,fire hydrant,stop sign,parking meter,refrigerator,tv"
+              value: "bicycle,truck,boat,traffic light,fire hydrant,stop sign,parking meter,refrigerator,tv,baseball bat,baseball glove,surfboard,boat,truck"
           ports:
             - containerPort: 8080
           resources:
