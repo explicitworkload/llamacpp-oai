@@ -2,9 +2,8 @@ FROM registry.access.redhat.com/ubi9/python-312:latest
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY requirements.txt .
-RUN uv pip install --no-cache -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 COPY static/ static/
