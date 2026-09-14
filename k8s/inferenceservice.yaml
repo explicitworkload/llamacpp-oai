@@ -1,17 +1,17 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: rf-detr
+  name: yolo26
   namespace: john
   annotations:
     modelFormat: onnx
-    opendatahub.io/connection-path: /models/inference_model.onnx
+    opendatahub.io/connection-path: /models/yolo26l.onnx
     opendatahub.io/connections: models-odf-s3
     opendatahub.io/hardware-profile-name: default-profile
     opendatahub.io/hardware-profile-namespace: redhat-ods-applications
     opendatahub.io/model-type: object-detection
-    openshift.io/display-name: "RF-DETR Object Detection"
-    openshift.io/description: "RF-DETR Base ONNX model for real-time object detection (COCO 80 classes)"
+    openshift.io/display-name: "YOLO26l Object Detection"
+    openshift.io/description: "YOLO26l ONNX model with end-to-end head for real-time object detection (COCO 80 classes)"
     security.opendatahub.io/enable-auth: "true"
     serving.kserve.io/deploymentMode: Standard
   labels:
@@ -41,7 +41,7 @@ spec:
       runtime: onnxruntime-migraphx
       storage:
         key: models-odf-s3
-        path: /models/inference_model.onnx
+        path: /models/yolo26l.onnx
     serviceAccountName: models-odf-s3-sa
     timeout: 300
 ---

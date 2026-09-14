@@ -21,13 +21,9 @@ COCO_CLASSES = [
 ]
 
 
-def _sigmoid(x: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-x))
-
-
 class KServeDetector:
     def __init__(self, inference_url: str, model_name: str,
-                 input_size: tuple[int, int] = (560, 560),
+                 input_size: tuple[int, int] = (640, 640),
                  conf_threshold: float = 0.25,
                  excluded_classes: set[str] | None = None,
                  token: str | None = None):
@@ -48,32 +44,29 @@ class KServeDetector:
 
     def postprocess(self, outputs: dict, orig_size: tuple[int, int]) -> list[dict]:
         orig_w, orig_h = orig_size
+        inp_w, inp_h = self.input_size
 
-        dets = outputs["pred_boxes"].squeeze(0)
-        logits = outputs["logits"].squeeze(0)
+        # YOLO26 e2e output: [1, 300, 6] -> [300, 6]
+        # Each row: [x1, y1, x2, y2, score, class_id]
+        output = outputs["output0"].squeeze(0)
 
-        scores = _sigmoid(logits)
+        scores = output[:, 4]
+        class_ids = output[:, 5].astype(int)
+        boxes = output[:, :4]
 
-        # Skip background class (index 0) for 91-class COCO output
-        if scores.shape[1] == 91:
-            scores = scores[:, 1:]
-
-        max_scores = scores.max(axis=1)
-        class_ids = scores.argmax(axis=1)
-
-        mask = max_scores > self.conf_threshold
-        dets = dets[mask]
-        max_scores = max_scores[mask]
+        mask = scores > self.conf_threshold
+        boxes = boxes[mask]
+        scores = scores[mask]
         class_ids = class_ids[mask]
 
-        if len(dets) == 0:
+        if len(boxes) == 0:
             return []
 
-        cx, cy, bw, bh = dets[:, 0], dets[:, 1], dets[:, 2], dets[:, 3]
-        x1 = (cx - bw / 2) * orig_w
-        y1 = (cy - bh / 2) * orig_h
-        x2 = (cx + bw / 2) * orig_w
-        y2 = (cy + bh / 2) * orig_h
+        # Scale boxes from input size to original image
+        x1 = boxes[:, 0] * orig_w / inp_w
+        y1 = boxes[:, 1] * orig_h / inp_h
+        x2 = boxes[:, 2] * orig_w / inp_w
+        y2 = boxes[:, 3] * orig_h / inp_h
         boxes_xyxy = np.stack([x1, y1, x2, y2], axis=1)
 
         detections = []
@@ -82,7 +75,7 @@ class KServeDetector:
             detections.append({
                 "class_id": cid,
                 "class_name": COCO_CLASSES[cid] if cid < len(COCO_CLASSES) else str(cid),
-                "confidence": round(float(max_scores[i]), 4),
+                "confidence": round(float(scores[i]), 4),
                 "bbox": [round(float(v), 1) for v in boxes_xyxy[i]],
             })
 
@@ -95,13 +88,10 @@ class KServeDetector:
     def detect(self, image: np.ndarray) -> tuple[list[dict], float]:
         blob, orig_size = self.preprocess(image)
 
-        inputs = [grpcclient.InferInput("pixel_values", list(blob.shape), "FP32")]
+        inputs = [grpcclient.InferInput("images", list(blob.shape), "FP32")]
         inputs[0].set_data_from_numpy(blob)
 
-        outputs = [
-            grpcclient.InferRequestedOutput("pred_boxes"),
-            grpcclient.InferRequestedOutput("logits"),
-        ]
+        outputs = [grpcclient.InferRequestedOutput("output0")]
 
         t0 = time.perf_counter()
         result = self._client.infer(
@@ -111,10 +101,7 @@ class KServeDetector:
         )
         inference_ms = (time.perf_counter() - t0) * 1000
 
-        output_dict = {
-            "pred_boxes": result.as_numpy("pred_boxes"),
-            "logits": result.as_numpy("logits"),
-        }
+        output_dict = {"output0": result.as_numpy("output0")}
 
         detections = self.postprocess(output_dict, orig_size)
         return detections, inference_ms

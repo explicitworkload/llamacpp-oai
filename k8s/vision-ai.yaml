@@ -23,7 +23,7 @@ spec:
           imagePullPolicy: Always
           env:
             - name: INFERENCE_URL
-              value: rf-detr-grpc.john.svc.cluster.local:8001
+              value: yolo26-grpc.john.svc.cluster.local:8001
             - name: MODEL_NAME
               value: model
             - name: SAM2_URL
@@ -38,7 +38,7 @@ spec:
             - name: CONF_THRESHOLD
               value: "0.4"
             - name: INPUT_SIZE
-              value: "560"
+              value: "640"
             - name: UNDISTORT_K1
               value: "0"
             - name: EXCLUDED_CLASSES
