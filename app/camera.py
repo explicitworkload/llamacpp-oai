@@ -67,12 +67,7 @@ class RTSPCamera:
 
             self._connected = True
             while self._running:
-                # Drain buffered frames — grab without decoding
-                for _ in range(4):
-                    if not cap.grab():
-                        break
-                # Decode only the latest frame
-                ret, frame = cap.retrieve()
+                ret, frame = cap.read()
                 if not ret:
                     self._connected = False
                     break
