@@ -10,7 +10,7 @@ spec:
       default: https://github.com/explicitworkload/llamacpp-oai.git
     - name: git-revision
       type: string
-      default: experiment/vision-ai-yolox
+      default: experiment/vision-ai
     - name: serving-image
       type: string
       default: registry-quay-app.quay.svc.cluster.local/visionai/visionai:latest
@@ -138,10 +138,10 @@ spec:
               set -e
               echo "Restarting deployments in john namespace..."
               kubectl rollout restart deployment/vision-ai -n john
-              kubectl rollout restart deployment/yolo26-predictor -n john || echo "yolo26-predictor not found, skipping"
+              kubectl rollout restart deployment/rf-detr-predictor -n john || echo "rf-detr-predictor not found, skipping"
               kubectl rollout restart deployment/sam2-predictor -n john || echo "sam2-predictor not found, skipping"
               echo "Waiting for rollouts to complete..."
               kubectl rollout status deployment/vision-ai -n john --timeout=120s
-              kubectl rollout status deployment/yolo26-predictor -n john --timeout=300s || true
+              kubectl rollout status deployment/rf-detr-predictor -n john --timeout=300s || true
               kubectl rollout status deployment/sam2-predictor -n john --timeout=300s || true
               echo "Rollout restarts complete."
