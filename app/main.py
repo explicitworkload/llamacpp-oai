@@ -1,5 +1,6 @@
 import io
 import os
+import tempfile
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ from PIL import Image
 
 from app.detector import KServeDetector, draw_detections
 from app.camera import RTSPCamera
+from app.video import VideoPlayer
 
 MODEL_NAME = os.getenv("MODEL_NAME", "model")
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.16.199.110/stream1")
@@ -35,6 +37,13 @@ _inference_lock = threading.Lock()
 _inference_threads: list[threading.Thread] = []
 _inference_running = False
 
+_video_player: VideoPlayer | None = None
+_video_detections: dict[str, list[dict]] = {}
+_video_masks: dict[str, list[np.ndarray] | None] = {}
+_video_lock = threading.Lock()
+_video_threads: list[threading.Thread] = []
+_video_running = False
+
 
 def _inference_loop(model_name: str, detector: KServeDetector):
     while _inference_running:
@@ -54,6 +63,41 @@ def _inference_loop(model_name: str, detector: KServeDetector):
                 _model_masks[model_name] = masks
         except Exception:
             pass
+
+
+def _video_inference_loop(model_name: str, detector: KServeDetector):
+    while _video_running:
+        if _video_player is None or not _video_player.active:
+            time.sleep(0.1)
+            continue
+        frame = _video_player.get_frame()
+        if frame is None:
+            time.sleep(0.1)
+            continue
+        try:
+            detections, masks, _ = detector.detect(frame)
+            with _video_lock:
+                _video_detections[model_name] = detections
+                _video_masks[model_name] = masks
+        except Exception:
+            pass
+
+
+def _stop_video():
+    global _video_player, _video_running, _video_threads
+    _video_running = False
+    for t in _video_threads:
+        t.join(timeout=5)
+    _video_threads = []
+    if _video_player:
+        _video_player.stop()
+        try:
+            os.unlink(_video_player.path)
+        except OSError:
+            pass
+        _video_player = None
+    _video_detections.clear()
+    _video_masks.clear()
 
 
 @asynccontextmanager
@@ -95,6 +139,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    _stop_video()
     _inference_running = False
     for t in _inference_threads:
         t.join(timeout=5)
@@ -217,3 +262,98 @@ def mjpeg_stream(annotate: bool = True, model: str = None):
             )
 
     return StreamingResponse(generate(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.post("/video/upload")
+async def upload_video(file: UploadFile, model: str = None):
+    global _video_player, _video_running, _video_threads
+    _stop_video()
+
+    suffix = os.path.splitext(file.filename or "video.mp4")[1]
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    try:
+        while chunk := await file.read(1024 * 1024):
+            tmp.write(chunk)
+    finally:
+        tmp.close()
+
+    player = VideoPlayer(tmp.name)
+    try:
+        player.start()
+    except ValueError as e:
+        os.unlink(tmp.name)
+        raise HTTPException(status_code=400, detail=str(e))
+
+    _video_player = player
+
+    _video_running = True
+    for name, detector in _detectors.items():
+        t = threading.Thread(target=_video_inference_loop, args=(name, detector), daemon=True)
+        t.start()
+        _video_threads.append(t)
+
+    return {
+        "status": "playing",
+        "fps": player.fps,
+        "total_frames": player.total_frames,
+        "resolution": list(player.resolution),
+    }
+
+
+@app.get("/video/stream")
+def video_stream(model: str = None):
+    if _video_player is None or not _video_player.active:
+        raise HTTPException(status_code=404, detail="No video playing")
+    name, _ = _get_detector(model)
+
+    def generate():
+        while _video_player and _video_player.active:
+            frame = _video_player.get_frame()
+            if frame is None:
+                time.sleep(0.1)
+                continue
+            with _video_lock:
+                detections = list(_video_detections.get(name, []))
+                masks = _video_masks.get(name)
+            if detections:
+                frame = draw_detections(frame, detections, masks)
+            _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + jpeg.tobytes()
+                + b"\r\n"
+            )
+
+    return StreamingResponse(generate(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/video/status")
+def video_status():
+    if _video_player is None:
+        return {"active": False}
+    return {
+        "active": _video_player.active,
+        "fps": _video_player.fps,
+        "total_frames": _video_player.total_frames,
+        "resolution": list(_video_player.resolution),
+    }
+
+
+@app.delete("/video")
+def delete_video():
+    _stop_video()
+    return {"status": "stopped"}
+
+
+@app.post("/detect/annotate")
+async def detect_annotate(file: UploadFile, model: str = None):
+    name, detector = _get_detector(model)
+    contents = await file.read()
+    image = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    detections, masks, _ = detector.detect(image)
+    if detections:
+        image = draw_detections(image, detections, masks)
+    _, jpeg = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    return StreamingResponse(io.BytesIO(jpeg.tobytes()), media_type="image/jpeg")
