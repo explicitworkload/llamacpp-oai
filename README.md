@@ -239,6 +239,8 @@ The vision-ai app is configured via environment variables in `k8s/vision-ai.yaml
 | `RTSP_URL` | (from secret) | RTSP camera URL (via `rtsp-credentials` secret) |
 | `INPUT_SIZE` | `560` | Detection model input resolution |
 | `CONF_THRESHOLD` | `0.25` | Minimum confidence for detections |
+| `UNDISTORT_K1` | `0` | Barrel distortion correction coefficient (negative = correct barrel, 0 = disabled) |
+| `EXCLUDED_CLASSES` | (none) | Comma-separated COCO class names to filter from detections |
 
 ## CI/CD
 

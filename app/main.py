@@ -21,6 +21,9 @@ SAM2_MODEL_NAME = os.getenv("SAM2_MODEL_NAME", "model")
 RTSP_URL = os.getenv("RTSP_URL", "rtsp://172.16.199.110/stream1")
 INPUT_SIZE = int(os.getenv("INPUT_SIZE", "560"))
 CONF_THRESHOLD = float(os.getenv("CONF_THRESHOLD", "0.25"))
+UNDISTORT_K1 = float(os.getenv("UNDISTORT_K1", "0"))
+_excluded_env = os.getenv("EXCLUDED_CLASSES", "")
+EXCLUDED_CLASSES = {c.strip() for c in _excluded_env.split(",") if c.strip()} if _excluded_env else set()
 
 detector: KServeDetector | None = None
 segmenter: KServeSegmenter | None = None
@@ -76,13 +79,14 @@ async def lifespan(app: FastAPI):
         model_name=MODEL_NAME,
         input_size=(INPUT_SIZE, INPUT_SIZE),
         conf_threshold=CONF_THRESHOLD,
+        excluded_classes=EXCLUDED_CLASSES,
     )
     segmenter = KServeSegmenter(
         inference_url=SAM2_URL,
         model_name=SAM2_MODEL_NAME,
     )
 
-    camera = RTSPCamera(RTSP_URL)
+    camera = RTSPCamera(RTSP_URL, undistort_k1=UNDISTORT_K1)
     camera.start()
 
     _inference_running = True

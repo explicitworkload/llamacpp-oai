@@ -29,11 +29,13 @@ class KServeDetector:
     def __init__(self, inference_url: str, model_name: str,
                  input_size: tuple[int, int] = (560, 560),
                  conf_threshold: float = 0.25,
+                 excluded_classes: set[str] | None = None,
                  token: str | None = None):
         self.inference_url = inference_url.rstrip("/")
         self.model_name = model_name
         self.input_size = input_size
         self.conf_threshold = conf_threshold
+        self.excluded_classes = excluded_classes or set()
         self.token = token
         self._client = grpcclient.InferenceServerClient(url=inference_url)
 
@@ -79,6 +81,9 @@ class KServeDetector:
                 "confidence": round(float(max_scores[i]), 4),
                 "bbox": [round(float(v), 1) for v in boxes_xyxy[i]],
             })
+
+        if self.excluded_classes:
+            detections = [d for d in detections if d["class_name"] not in self.excluded_classes]
 
         detections.sort(key=lambda d: d["confidence"], reverse=True)
         return detections
