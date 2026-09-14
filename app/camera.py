@@ -1,8 +1,11 @@
+import os
 import threading
 import time
 
 import cv2
 import numpy as np
+
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|max_delay;0"
 
 
 class RTSPCamera:
@@ -64,7 +67,12 @@ class RTSPCamera:
 
             self._connected = True
             while self._running:
-                ret, frame = cap.read()
+                # Drain buffered frames — grab without decoding
+                for _ in range(4):
+                    if not cap.grab():
+                        break
+                # Decode only the latest frame
+                ret, frame = cap.retrieve()
                 if not ret:
                     self._connected = False
                     break
