@@ -242,6 +242,27 @@ The vision-ai app is configured via environment variables in `k8s/vision-ai.yaml
 | `UNDISTORT_K1` | `0` | Barrel distortion correction coefficient (negative = correct barrel, 0 = disabled) |
 | `EXCLUDED_CLASSES` | (none) | Comma-separated COCO class names to filter from detections |
 
+### Tuning `UNDISTORT_K1`
+
+Corrects barrel distortion from wide-angle lenses (e.g. TP-Link VIGI S245). Uses OpenCV's distortion model with precomputed remap tables for minimal per-frame overhead.
+
+| Value | Effect |
+|-------|--------|
+| `0` | Disabled (no correction) |
+| `-0.1` | Light correction |
+| `-0.2` | Moderate correction |
+| `-0.3` | Default — good starting point for ~100° FoV dome cameras |
+| `-0.4` | Strong correction |
+| `-0.5` | Very strong — may overcorrect into pincushion |
+
+Look at the `/stream` endpoint and check that ceiling tiles and window edges appear as straight lines. If lines still curve outward, go more negative; if they curve inward, go less negative. Stronger correction crops more of the peripheral FoV.
+
+Adjust live without redeploying:
+
+```bash
+oc set env deployment/vision-ai UNDISTORT_K1="-0.35" -n john
+```
+
 ## CI/CD
 
 ### Tekton Pipeline
