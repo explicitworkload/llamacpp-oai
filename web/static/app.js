@@ -9,6 +9,7 @@ let activeModelCaps = [];
 let attachments = [];
 let abortController = null;
 let systemPrompts = JSON.parse(localStorage.getItem('cmd_directives') || '{}');
+let visionMode = 'live'; // 'live', 'image', 'video'
 
 // Auth
 async function login() {
@@ -155,6 +156,9 @@ function showVisionFeed() {
   const indicator = document.getElementById('vision-indicator');
   const status = document.getElementById('vision-status');
 
+  const label = document.getElementById('vision-label');
+  label.textContent = 'LIVE INFERENCE FEED';
+
   overlay.style.display = 'flex';
   status.textContent = 'CONNECTING TO FEED...';
   indicator.className = 'vision-indicator connecting';
@@ -178,6 +182,117 @@ function hideVisionFeed() {
   stream.src = '';
   document.getElementById('chat-messages').style.display = '';
   document.getElementById('chat-input-area').style.display = '';
+}
+
+function triggerVisionUpload() {
+  document.getElementById('vision-file-input').click();
+}
+
+async function handleVisionFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  const overlay = document.getElementById('vision-overlay');
+  const status = document.getElementById('vision-status');
+  const indicator = document.getElementById('vision-indicator');
+  const label = document.getElementById('vision-label');
+
+  overlay.style.display = 'flex';
+  status.textContent = 'PROCESSING UPLOAD...';
+  indicator.className = 'vision-indicator connecting';
+
+  if (file.type.startsWith('image/')) {
+    await handleVisionImageUpload(file);
+  } else {
+    await handleVisionVideoUpload(file);
+  }
+}
+
+async function handleVisionImageUpload(file) {
+  const overlay = document.getElementById('vision-overlay');
+  const status = document.getElementById('vision-status');
+  const indicator = document.getElementById('vision-indicator');
+  const label = document.getElementById('vision-label');
+  const stream = document.getElementById('vision-stream');
+
+  const fd = new FormData();
+  fd.append('file', file);
+  if (activeModel) fd.append('model', activeModel);
+
+  try {
+    const res = await fetch(`${API}/api/vision/detect/annotate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    stream.onload = () => {
+      overlay.style.display = 'none';
+      indicator.className = 'vision-indicator live';
+    };
+    stream.src = url;
+    visionMode = 'image';
+    label.textContent = 'UPLOADED IMAGE — INFERENCE RESULT';
+  } catch (err) {
+    overlay.style.display = 'flex';
+    status.textContent = 'UPLOAD FAILED';
+    indicator.className = 'vision-indicator offline';
+  }
+}
+
+async function handleVisionVideoUpload(file) {
+  const overlay = document.getElementById('vision-overlay');
+  const status = document.getElementById('vision-status');
+  const indicator = document.getElementById('vision-indicator');
+  const label = document.getElementById('vision-label');
+  const stream = document.getElementById('vision-stream');
+
+  const fd = new FormData();
+  fd.append('file', file);
+  if (activeModel) fd.append('model', activeModel);
+
+  try {
+    const res = await fetch(`${API}/api/vision/video`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    stream.onload = () => {
+      overlay.style.display = 'none';
+      indicator.className = 'vision-indicator live';
+    };
+    stream.onerror = () => {
+      overlay.style.display = 'flex';
+      status.textContent = 'VIDEO FEED UNAVAILABLE';
+      indicator.className = 'vision-indicator offline';
+    };
+    stream.src = `${API}/api/vision/video/stream?token=${token}&model=${encodeURIComponent(activeModel)}`;
+    visionMode = 'video';
+    label.textContent = 'VIDEO INFERENCE FEED';
+  } catch (err) {
+    overlay.style.display = 'flex';
+    status.textContent = 'VIDEO UPLOAD FAILED';
+    indicator.className = 'vision-indicator offline';
+  }
+}
+
+function backToLiveFeed() {
+  if (visionMode === 'video') {
+    fetch(`${API}/api/vision/video`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    }).catch(() => {});
+  }
+  visionMode = 'live';
+  showVisionFeed();
 }
 
 function getDirective(modelName) {
@@ -672,6 +787,10 @@ async function sendMessage() {
 }
 
 function clearChat() {
+  if (isVisionModel(activeModelType)) {
+    backToLiveFeed();
+    return;
+  }
   messages = [];
   attachments = [];
   renderAttachments();
@@ -720,6 +839,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-logout').addEventListener('click', logout);
   document.getElementById('btn-sidebar-toggle').addEventListener('click', toggleSidebar);
   document.getElementById('sidebar-backdrop').addEventListener('click', closeSidebar);
+  document.getElementById('btn-vision-upload').addEventListener('click', triggerVisionUpload);
+  document.getElementById('vision-file-input').addEventListener('change', handleVisionFileSelected);
 
   if (token) {
     fetch(`${API}/api/models`, { headers: authHeaders() })

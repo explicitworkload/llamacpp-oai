@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import datetime
 import ssl
@@ -294,6 +295,80 @@ async def vision_health():
             return resp.json()
     except Exception as e:
         return {"status": "error", "detail": str(e)}
+
+
+@app.post("/api/vision/video", dependencies=[Depends(verify_token)])
+async def vision_video_upload(file: UploadFile, model: str = Form(None)):
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    timeout = httpx.Timeout(connect=60.0, read=300.0, write=300.0, pool=30.0)
+
+    video_bytes = await file.read()
+    async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
+        files = {"file": (file.filename, video_bytes, file.content_type)}
+        data = {}
+        if model:
+            data["model"] = model
+        resp = await c.post(f"{VISION_AI_URL}/video/upload", files=files, data=data)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        return resp.json()
+
+
+@app.get("/api/vision/video/stream", dependencies=[Depends(verify_token_or_query)])
+async def vision_video_stream(model: str = None):
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
+
+    upstream = f"{VISION_AI_URL}/video/stream"
+    if model:
+        upstream += f"?model={model}"
+
+    async def proxy():
+        try:
+            async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
+                async with c.stream("GET", upstream) as resp:
+                    async for chunk in resp.aiter_bytes():
+                        yield chunk
+        except (httpx.RemoteProtocolError, httpx.ReadError, GeneratorExit):
+            return
+
+    return StreamingResponse(proxy(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.delete("/api/vision/video", dependencies=[Depends(verify_token)])
+async def vision_video_delete():
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    try:
+        async with httpx.AsyncClient(verify=ssl_ctx, timeout=5.0) as c:
+            resp = await c.delete(f"{VISION_AI_URL}/video")
+            return resp.json()
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+@app.post("/api/vision/detect/annotate", dependencies=[Depends(verify_token)])
+async def vision_detect_annotate(file: UploadFile, model: str = Form(None)):
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    timeout = httpx.Timeout(connect=60.0, read=300.0, write=30.0, pool=30.0)
+
+    image_bytes = await file.read()
+    async with httpx.AsyncClient(verify=ssl_ctx, timeout=timeout) as c:
+        files = {"file": (file.filename, image_bytes, file.content_type)}
+        data = {}
+        if model:
+            data["model"] = model
+        resp = await c.post(f"{VISION_AI_URL}/detect/annotate", files=files, data=data)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        return StreamingResponse(io.BytesIO(resp.content), media_type="image/jpeg")
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
