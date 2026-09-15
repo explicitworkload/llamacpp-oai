@@ -34,7 +34,7 @@ class KServeDetector:
         self.excluded_classes = excluded_classes or set()
         self.token = token
         self._client = grpcclient.InferenceServerClient(url=inference_url)
-        self._has_seg = False
+        self._has_seg = None
 
     def preprocess(self, image: np.ndarray) -> tuple[np.ndarray, tuple[int, int]]:
         orig_h, orig_w = image.shape[:2]
@@ -115,22 +115,36 @@ class KServeDetector:
         inputs[0].set_data_from_numpy(blob)
 
         outputs = [grpcclient.InferRequestedOutput("output0")]
-        outputs.append(grpcclient.InferRequestedOutput("output1"))
+        if self._has_seg is not False:
+            outputs.append(grpcclient.InferRequestedOutput("output1"))
 
         t0 = time.perf_counter()
-        result = self._client.infer(
-            model_name=self.model_name,
-            inputs=inputs,
-            outputs=outputs,
-        )
+        try:
+            result = self._client.infer(
+                model_name=self.model_name,
+                inputs=inputs,
+                outputs=outputs,
+            )
+        except Exception:
+            if self._has_seg is None:
+                outputs = [grpcclient.InferRequestedOutput("output0")]
+                result = self._client.infer(
+                    model_name=self.model_name,
+                    inputs=inputs,
+                    outputs=outputs,
+                )
+                self._has_seg = False
+            else:
+                raise
         inference_ms = (time.perf_counter() - t0) * 1000
 
         output_dict = {"output0": result.as_numpy("output0")}
-        try:
-            output_dict["output1"] = result.as_numpy("output1")
-            self._has_seg = True
-        except Exception:
-            self._has_seg = False
+        if self._has_seg is not False:
+            try:
+                output_dict["output1"] = result.as_numpy("output1")
+                self._has_seg = True
+            except Exception:
+                self._has_seg = False
 
         detections, masks = self.postprocess(output_dict, orig_size)
         return detections, masks, inference_ms
