@@ -35,7 +35,6 @@ class KServeDetector:
         self.token = token
         self._client = grpcclient.InferenceServerClient(url=inference_url)
         self._has_seg = False
-        self._seg_probed = False
 
     def preprocess(self, image: np.ndarray) -> tuple[np.ndarray, tuple[int, int]]:
         orig_h, orig_w = image.shape[:2]
@@ -116,8 +115,7 @@ class KServeDetector:
         inputs[0].set_data_from_numpy(blob)
 
         outputs = [grpcclient.InferRequestedOutput("output0")]
-        if self._has_seg or not self._seg_probed:
-            outputs.append(grpcclient.InferRequestedOutput("output1"))
+        outputs.append(grpcclient.InferRequestedOutput("output1"))
 
         t0 = time.perf_counter()
         result = self._client.infer(
@@ -132,8 +130,7 @@ class KServeDetector:
             output_dict["output1"] = result.as_numpy("output1")
             self._has_seg = True
         except Exception:
-            pass
-        self._seg_probed = True
+            self._has_seg = False
 
         detections, masks = self.postprocess(output_dict, orig_size)
         return detections, masks, inference_ms
