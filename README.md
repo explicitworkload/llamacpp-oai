@@ -1,81 +1,78 @@
 # Vision AI
 
-Real-time object detection and instance segmentation pipeline for OpenShift AI. Captures an RTSP camera feed, runs inference through RF-DETR (detection) and SAM2 (segmentation) served via KServe, and streams annotated video with bounding boxes and segmentation masks.
+Real-time object detection and instance segmentation pipeline for OpenShift AI. Captures an RTSP camera feed or uploaded video, runs inference through YOLO26 models served via KServe, and streams annotated video with bounding boxes and segmentation masks.
 
 ## Architecture
 
 ```
-┌──────────────┐    RTSP     ┌───────────────┐  gRPC :8001   ┌─────────────────────┐
-│  TP-Link     │ ──────────▶ │  visionai-app │ ────────────▶ │  RF-DETR (KServe)   │
-│  VIGI S245   │             │  (FastAPI)    │               │  Object Detection   │
-│  RTSP Camera │             │               │               │  AMD GPU / ROCm     │
-└──────────────┘             │  OpenCV       │  gRPC :8001   └─────────────────────┘
-                             │  capture +    │ ────────────▶ ┌─────────────────────┐
-                             │  annotation   │               │  SAM2 (KServe)      │
-                             └───────────────┘               │  Segmentation Masks │
-                                    │                        │  CPU                │
-                                    ▼                        └─────────────────────┘
+                                                  gRPC :8001   ┌─────────────────────┐
+┌──────────────┐    RTSP     ┌───────────────┐ ──────────────▶ │  YOLO26n (KServe)   │
+│  TP-Link     │ ──────────▶ │  visionai-app │                 │  Object Detection   │
+│  VIGI S245   │             │  (FastAPI)    │                 │  CPU                │
+│  RTSP Camera │             │               │  gRPC :8001     └─────────────────────┘
+└──────────────┘             │  OpenCV       │ ──────────────▶ ┌─────────────────────┐
+                             │  capture +    │                 │  YOLO26n-seg        │
+┌──────────────┐             │  annotation   │                 │  Segmentation Masks │
+│  Video       │ ──upload──▶ │               │                 │  CPU                │
+│  Upload      │             └───────────────┘                 └─────────────────────┘
+└──────────────┘                    │
+                                    ▼
                              Annotated MJPEG stream / snapshots / JSON API
 ```
 
 ## Components
 
-### ServingRuntime - ROCm/GPU (`Dockerfile` + `Dockerfile.rocm-base`)
+### ServingRuntime - ROCm/GPU (`serve.py`)
 
-Custom KServe ServingRuntime image with ONNX Runtime + ROCm for AMD GPU. Uses a two-tier build: `Dockerfile.rocm-base` builds a heavy base image (~8.4 GB) with ROCm and ONNX Runtime, and `Dockerfile` adds a thin layer with `serve.py`.
+Custom KServe ServingRuntime with ONNX Runtime + ROCm for AMD GPU inference.
 
-- **Base**: `rocm/migraphx-ci-ubuntu` (via `Dockerfile.rocm-base`)
+- **Image**: `quay.apps.snuc.kubernetes.day/visionai/visionai:latest`
 - **Runtime**: ONNX Runtime with `ROCMExecutionProvider` (ROCm 6.4)
 
-### ServingRuntime - CPU (`Dockerfile.cpu`)
+### ServingRuntime - CPU (`serve.py`)
 
-CPU-only KServe ServingRuntime image with ONNX Runtime.
+CPU-only KServe ServingRuntime with ONNX Runtime.
 
-- **Base**: Red Hat UBI9
+- **Image**: `quay.apps.snuc.kubernetes.day/visionai/visionai:cpu`
 - **Runtime**: ONNX Runtime with `CPUExecutionProvider`
 
-### Vision AI App (`app/Dockerfile`)
+### Vision AI App (`app/`)
 
-FastAPI application that captures RTSP frames and calls KServe inference endpoints.
+FastAPI application that captures RTSP frames and/or uploaded video, runs multi-model inference via KServe gRPC, and streams annotated MJPEG.
 
 - **Base**: Red Hat UBI9
 - **Dependencies**: OpenCV, tritonclient[grpc], numpy, FastAPI
 
 ## Models
 
-| Model | Purpose | License | Format |
-|-------|---------|---------|--------|
-| [RF-DETR](https://github.com/roboflow/rf-detr) (Base) | Object detection (COCO 80 classes) | Apache 2.0 | ONNX |
-| [SAM2](https://github.com/facebookresearch/sam2) (Hiera Small) | Instance segmentation masks | Apache 2.0 | ONNX |
+| Model | Purpose | Format |
+|-------|---------|--------|
+| [YOLO26n](https://github.com/ultralytics/ultralytics) | Object detection (COCO 80 classes) | ONNX |
+| [YOLO26n-seg](https://github.com/ultralytics/ultralytics) | Detection + instance segmentation (COCO 80 classes) | ONNX |
 
-RF-DETR runs on AMD GPU via the `onnxruntime-migraphx` ServingRuntime. SAM2 runs on CPU via the `onnxruntime-cpu` ServingRuntime.
-
-### Exporting RF-DETR to ONNX
-
-```bash
-pip install "rfdetr[onnx]"
-python -c "
-from rfdetr import RFDETRBase
-model = RFDETRBase(pretrain_weights='coco')
-model.export(format='onnx', output_dir='./rf-detr')
-"
-# Upload rf-detr/inference_model.onnx to S3 at /models/
-```
+Both models run on CPU via the `onnxruntime-cpu` ServingRuntime.
 
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Status of detector, segmenter, and camera connection |
-| `/detect` | POST | Upload an image, returns detection + segmentation JSON |
+| `/health` | GET | Status of camera, inference, and configured models |
+| `/models` | GET | List configured model endpoints |
+| `/detect` | POST | Upload an image, returns detection JSON |
 | `/detect/camera` | GET | Run detection on current RTSP frame (JSON) |
+| `/detect/annotate` | POST | Upload an image, returns annotated JPEG with detections and masks |
 | `/snapshot` | GET | JPEG snapshot from camera with annotations |
 | `/stream` | GET | Live MJPEG stream with detection overlay and segmentation masks |
+| `/video/upload` | POST | Upload a video file for playback and inference |
+| `/video/stream` | GET | MJPEG stream of uploaded video with detection overlay |
+| `/video/status` | GET | Status of uploaded video playback |
+| `/video` | DELETE | Stop and remove uploaded video |
+
+Query parameters: `?model=yolo26-seg` to select a specific model, `?annotate=false` to disable overlay.
 
 ## Prerequisites
 
 - OpenShift cluster with OpenShift AI (RHOAI) installed
-- AMD GPU node (`amd.com/gpu`) with ROCm drivers
 - S3-compatible storage (e.g., OpenShift Data Foundation) with a data connection
 - RTSP camera accessible from the cluster network
 - Quay registry (in-cluster or external) for container images
@@ -84,11 +81,10 @@ model.export(format='onnx', output_dir='./rf-detr')
 
 ## Setup
 
-### 1. Create namespaces
+### 1. Create namespace
 
 ```bash
-oc new-project visionai   # Tekton pipelines
-oc new-project john        # InferenceServices and app
+oc new-project john
 ```
 
 ### 2. Create the S3 data connection and service account
@@ -99,8 +95,6 @@ Create a data connection in OpenShift AI pointing to your S3 bucket containing t
 oc create sa models-odf-s3-sa -n john
 ```
 
-The service account needs to be referenced in the InferenceService and vision-ai deployment specs.
-
 ### 3. Create the RTSP credentials secret
 
 ```bash
@@ -109,115 +103,51 @@ oc create secret generic rtsp-credentials \
   -n john
 ```
 
-### 4. Create the Quay push secret for Tekton pipelines
-
-The pipeline pushes built images to your Quay registry. Create the secret with your Quay credentials (do NOT commit real credentials to Git):
-
-```bash
-oc create secret docker-registry quay-push-secret \
-  --docker-server=<quay-hostname> \
-  --docker-username=<username> \
-  --docker-password='<password>' \
-  -n visionai
-```
-
-The placeholder in `pipelines/quay-secret.yaml` is for reference only.
-
-### 5. Create the Red Hat pull secret (for Tekton tasks)
-
-The `restart-rollouts` pipeline task uses `registry.redhat.io/openshift4/ose-cli`, which requires Red Hat registry authentication.
-
-```bash
-oc create secret generic pull-secret \
-  --from-file=.dockerconfigjson=pull-secret.json \
-  --type=kubernetes.io/dockerconfigjson \
-  -n visionai
-
-oc patch sa pipeline -n visionai -p '{"imagePullSecrets": [{"name": "pull-secret"}]}'
-```
-
-### 6. Create the GitHub webhook secret
-
-Generate a secure secret for webhook validation:
-
-```bash
-SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-oc create secret generic github-webhook-secret \
-  --from-literal=secret="$SECRET" \
-  -n visionai
-echo "Use this secret in your GitHub webhook config: $SECRET"
-```
-
-### 7. Upload model weights to S3
+### 4. Upload model weights to S3
 
 Place ONNX files in your S3 bucket:
 
 ```
-/models/inference_model.onnx          # RF-DETR
-/models/sam2_hiera_small.encoder.onnx # SAM2
+/models/yolo26n.onnx           # YOLO26n detection
+/models/yolo26n-seg.onnx       # YOLO26n segmentation
 ```
 
-### 8. Deploy with ArgoCD
-
-Apply the ArgoCD Applications to sync manifests from Git:
+### 5. Deploy with ArgoCD
 
 ```bash
-oc apply -f argocd/application.yaml            # Watches k8s/ directory
+oc apply -f argocd/application.yaml
 ```
 
-ArgoCD will automatically deploy:
+ArgoCD watches the `experiment/vision-ai-yolox` branch and auto-syncs the `k8s/` directory, deploying:
 - ServingRuntimes (ROCm and CPU)
-- InferenceServices (RF-DETR and SAM2)
+- InferenceServices (YOLO26n detection and YOLO26n-seg segmentation)
 - Vision AI app deployment, service, and route
 - gRPC bypass services for direct pod access
-
-Tekton pipeline resources in `pipelines/` are applied manually (not managed by ArgoCD).
-
-### 9. Configure GitHub webhook
-
-In your GitHub repository settings, add a webhook:
-
-- **Payload URL**: `https://<github-webhook-route>/`
-- **Content type**: `application/json`
-- **Secret**: the secret string from step 6
-- **Events**: "Just the push event"
-
-The CEL filter in the trigger only fires on pushes to `experiment/vision-ai`.
-
-### 10. Run the initial pipeline build
-
-```bash
-oc create -f pipelines/pipelinerun.yaml -n visionai
-```
-
-This builds all three images (`:latest`, `:cpu`, `visionai-app:latest`) and restarts the deployments.
 
 ## Project Structure
 
 ```
-Dockerfile                  # ServingRuntime image (thin layer on rocm-base)
-Dockerfile.rocm-base        # ROCm base image (~8.4 GB, ROCm + ONNX Runtime)
-Dockerfile.cpu              # ServingRuntime image (CPU + ONNX Runtime)
 serve.py                    # KServe model server (shared by both runtimes)
 requirements.txt            # Python dependencies for visionai-app
 app/
   Dockerfile                # App image (UBI9 + OpenCV + FastAPI)
-  main.py                   # FastAPI server and endpoints
-  detector.py               # RF-DETR KServe gRPC client + annotation rendering
-  segmenter.py              # SAM2 KServe gRPC client
+  main.py                   # FastAPI server, RTSP/video streaming, inference threads
+  detector.py               # YOLO26 KServe gRPC client, postprocessing, annotation rendering
+  segmenter.py              # SAM2 KServe gRPC client (legacy)
   camera.py                 # Threaded RTSP capture
+  video.py                  # Video file playback with thread-safe frame buffer
 k8s/
   servingruntime-rocm.yaml  # KServe ServingRuntime CR (onnxruntime-migraphx)
   servingruntime-cpu.yaml   # KServe ServingRuntime CR (onnxruntime-cpu)
-  inferenceservice.yaml     # KServe InferenceServices (RF-DETR + SAM2)
-  vision-ai.yaml            # App Deployment, Service, Route
-  vision-ai-grpc.yaml       # gRPC services bypassing kube-rbac-proxy
-  vision-ai-rbac.yaml       # RBAC for app SA to access InferenceServices
+  inferenceservice.yaml     # YOLO26n detection InferenceService
+  inferenceservice-seg.yaml # YOLO26n-seg segmentation InferenceService
+  vision-ai-yolox.yaml      # App Deployment, Service, Route
+  vision-ai-yolox-grpc.yaml # gRPC services bypassing kube-rbac-proxy
+  vision-ai-yolox-rbac.yaml # RBAC for app SA to access InferenceServices
   pipeline-rbac.yaml        # RBAC for pipeline SA to restart deployments
 pipelines/
-  pipeline.yaml             # Tekton Pipeline (clone, build x3, restart-rollouts)
-  pipelinerun.yaml          # Manual PipelineRun template (volumeClaimTemplate)
-  build-rocm-base.yaml      # Separate pipeline for ROCm base image builds
+  pipeline.yaml             # Tekton Pipeline (clone, build, restart-rollouts)
+  pipelinerun.yaml          # Manual PipelineRun template
   triggers.yaml             # EventListener, TriggerBinding, TriggerTemplate, Route
   quay-secret.yaml          # Quay push secret placeholder (do NOT commit real creds)
 scripts/
@@ -228,70 +158,48 @@ argocd/
 
 ## Configuration
 
-The vision-ai app is configured via environment variables in `k8s/vision-ai.yaml`:
+The vision-ai app is configured via environment variables in `k8s/vision-ai-yolox.yaml`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INFERENCE_URL` | `rf-detr-grpc.<ns>.svc.cluster.local:8001` | RF-DETR gRPC endpoint (direct, bypasses kube-rbac-proxy) |
-| `MODEL_NAME` | `model` | KServe model name for detection |
-| `SAM2_URL` | `sam2-grpc.<ns>.svc.cluster.local:8001` | SAM2 gRPC endpoint (direct, bypasses kube-rbac-proxy) |
-| `SAM2_MODEL_NAME` | `model` | KServe model name for segmentation |
+| `INFERENCE_ENDPOINTS` | (required) | Comma-separated `name=host:port` pairs for model endpoints |
+| `MODEL_NAME` | `model` | KServe model name used in gRPC inference calls |
 | `RTSP_URL` | (from secret) | RTSP camera URL (via `rtsp-credentials` secret) |
-| `INPUT_SIZE` | `560` | Detection model input resolution |
-| `CONF_THRESHOLD` | `0.7` | Minimum confidence for detections |
-| `UNDISTORT_K1` | `0` | Barrel distortion correction coefficient (negative = correct barrel, 0 = disabled) |
-| `EXCLUDED_CLASSES` | `bicycle,car,motorcycle,airplane,bus,train,truck,boat,traffic light,fire hydrant,stop sign,parking meter,refrigerator,tv` | Comma-separated COCO class names to filter from detections |
+| `INPUT_SIZE` | `640` | Detection model input resolution |
+| `CONF_THRESHOLD` | `0.25` | Minimum confidence for detections |
+| `UNDISTORT_K1` | `0` | Barrel distortion correction coefficient |
+| `EXCLUDED_CLASSES` | (see deployment) | Comma-separated COCO class names to filter from detections |
 
 ### Tuning `UNDISTORT_K1`
 
-Corrects barrel distortion from wide-angle lenses (e.g. TP-Link VIGI S245). Uses OpenCV's distortion model with precomputed remap tables for minimal per-frame overhead.
+Corrects barrel distortion from wide-angle lenses. Uses OpenCV's distortion model with precomputed remap tables.
 
 | Value | Effect |
 |-------|--------|
 | `0` | Disabled (no correction) |
 | `-0.1` | Light correction |
 | `-0.2` | Moderate correction |
-| `-0.3` | Default — good starting point for ~100° FoV dome cameras |
-| `-0.4` | Strong correction |
-| `-0.5` | Very strong — may overcorrect into pincushion |
-
-Look at the `/stream` endpoint and check that ceiling tiles and window edges appear as straight lines. If lines still curve outward, go more negative; if they curve inward, go less negative. Stronger correction crops more of the peripheral FoV.
+| `-0.3` | Good starting point for ~100 FoV dome cameras |
+| `-0.5` | Very strong correction |
 
 Adjust live without redeploying:
 
 ```bash
-oc set env deployment/vision-ai UNDISTORT_K1="-0.35" -n john
+oc set env deployment/vision-ai-yolox UNDISTORT_K1="-0.35" -n john
 ```
 
 ## CI/CD
 
 ### Tekton Pipeline
 
-The `vision-ai-build` pipeline runs on every push to `experiment/vision-ai` via GitHub webhook:
+The pipeline runs on push to `experiment/vision-ai-yolox` via GitHub webhook:
 
 1. **clone** - Clones the repository
-2. **build-serving** - Builds ROCm GPU image (`:latest`) ~30 min
-3. **build-serving-cpu** - Builds CPU image (`:cpu`) ~5 min
-4. **build-app** - Builds app image (`visionai-app:latest`) ~3 min
-5. **restart-rollouts** - Restarts deployments to pick up new images
-
-Each pipeline run creates an ephemeral PVC via `volumeClaimTemplate` that is cleaned up automatically.
+2. **build** - Builds container images and pushes to Quay
+3. **restart-rollouts** - Restarts deployments to pick up new images
 
 ### ArgoCD
 
-One ArgoCD Application watches the `experiment/vision-ai` branch:
+One ArgoCD Application watches the `experiment/vision-ai-yolox` branch:
 
-- `vision-ai` - syncs `k8s/` manifests (auto-sync, prune, self-heal)
-
-### Manual build
-
-```bash
-# ServingRuntime (ROCm)
-podman build -t <registry>/visionai:latest .
-
-# ServingRuntime (CPU)
-podman build -f Dockerfile.cpu -t <registry>/visionai:cpu .
-
-# App
-podman build -f app/Dockerfile -t <registry>/visionai-app:latest .
-```
+- `vision-ai-yolox` - syncs `k8s/` manifests (auto-sync, prune, self-heal)
