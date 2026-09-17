@@ -23,7 +23,7 @@ spec:
     deploymentStrategy:
       type: Recreate
     maxReplicas: 1
-    minReplicas: 1
+    minReplicas: 0
     model:
       modelFormat:
         name: onnx
