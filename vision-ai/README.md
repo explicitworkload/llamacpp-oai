@@ -108,7 +108,7 @@ oc create secret generic rtsp-credentials \
 Place ONNX files in your S3 bucket:
 
 ```
-/models/yolo26n.onnx           # YOLO26n detection
+/models/yolo26m.onnx           # YOLO26m detection
 /models/yolo26n-seg.onnx       # YOLO26n segmentation
 ```
 

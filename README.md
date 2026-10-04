@@ -156,16 +156,158 @@ Tekton pipelines build each component and restart its deployment; ArgoCD syncs t
 `k8s/` manifests. A shared `github-listener` EventListener in the `visionai` namespace
 routes pushes to the right pipeline by branch.
 
-## Reproducing Elsewhere
+## Setting Up From Scratch
 
-The manifests assume this cluster, so expect to adjust. You need:
+### What you need first
 
 - OpenShift with OpenShift AI 3.5 installed
-- S3-compatible object storage (e.g., OpenShift Data Foundation) for model artifacts,
-  with a data connection (`odf-s3`) in your namespace
-- An accelerator, if you want one that works — on **discrete** AMD or NVIDIA GPUs the
+- OpenShift GitOps (ArgoCD) and OpenShift Pipelines (Tekton) operators
+- S3-compatible object storage (e.g., OpenShift Data Foundation) for model artifacts
+- A container registry you can push to (this repo assumes an in-cluster Quay)
+- An accelerator, if you want one that works. On **discrete** AMD or NVIDIA GPUs the
   ROCm limitation above does not apply, and the `onnxruntime-migraphx` runtime and
-  `amd-gpu-vision` hardware profile become usable as written
+  `amd-gpu-vision` hardware profile become usable as written.
 
-Namespaces are hardcoded (`john` for workloads, `visionai` for pipelines), as are the
-Quay registry hostnames in each ServingRuntime and pipeline.
+### Before you start: things that are hardcoded
+
+These are baked into the manifests and will not match your cluster. Grep and replace
+before applying anything:
+
+| What | Current value |
+|---|---|
+| Workload namespace | `john` |
+| Pipeline namespace | `visionai` |
+| Registry host | `registry-quay-app.quay.svc.cluster.local` (in-cluster) and `quay.apps.snuc.kubernetes.day` (route) |
+| Cluster domain | `apps.snuc.kubernetes.day` |
+| Git remote | `github.com/explicitworkload/snuc-openshift-ai` |
+
+> **Credentials are committed in plaintext** in `litellm/litellm-deployment.yaml`
+> (`LITELLM_MASTER_KEY`, the Postgres DSN) and `command-center/k8s/deployment.yaml`
+> (`COMMAND_PASSWORD`). These are demo values. Replace them — ideally move them to
+> Secrets — before exposing anything.
+
+### 1. Namespaces
+
+```bash
+oc new-project john      # workloads: models, apps
+oc new-project visionai  # Tekton pipelines and triggers
+```
+
+### 2. Model storage
+
+Create an OpenShift AI data connection in `john` pointing at your S3 bucket. It must
+produce a secret named `models-odf-s3`. Then create the service account the
+InferenceServices use to pull weights:
+
+```bash
+oc create sa models-odf-s3-sa -n john
+```
+
+Upload the ONNX models to the bucket:
+
+```
+/models/yolo26m.onnx        # detection
+/models/yolo26n-seg.onnx    # segmentation
+```
+
+GGUF models for the LLM runtimes go in the same bucket; see
+[llm/llamacpp](llm/llamacpp/) for the paths its InferenceService expects.
+
+### 3. Secrets
+
+```bash
+# Registry push credentials for Tekton
+oc create secret docker-registry quay-push-secret \
+  --docker-server=<your-registry> \
+  --docker-username=<user> --docker-password=<pass> -n visionai
+oc annotate secret quay-push-secret -n visionai \
+  tekton.dev/docker-0=https://<your-registry>
+
+# GitHub webhook shared secret (only if you want push-triggered builds)
+oc create secret generic github-webhook-secret \
+  --from-literal=secret=<random-string> -n visionai
+
+# RTSP camera credentials (only if vision-ai reads a live camera)
+oc create secret generic rtsp-credentials \
+  --from-literal=RTSP_URL='rtsp://<user>:<pass>@<camera-ip>/stream1' -n john
+```
+
+### 4. Build the images
+
+The ServingRuntimes reference images that must exist before the models will start.
+Build the vision serving images from `vision-ai/` (build context is `./vision-ai`):
+
+```bash
+podman build -f vision-ai/Dockerfile.rocm-base -t <registry>/visionai:rocm-base vision-ai/
+podman build -f vision-ai/Dockerfile          -t <registry>/visionai:latest     vision-ai/
+podman build -f vision-ai/Dockerfile.cpu      -t <registry>/visionai:cpu        vision-ai/
+podman build -f vision-ai/app/Dockerfile      -t <registry>/visionai-app:yolox  vision-ai/
+podman push <registry>/visionai:rocm-base && podman push <registry>/visionai:latest
+podman push <registry>/visionai:cpu && podman push <registry>/visionai-app:yolox
+```
+
+`Dockerfile` builds `FROM` the `rocm-base` tag, so push that one first. The LLM and
+command-center images build the same way from their own component directories.
+
+### 5. Hardware profiles
+
+Models on a CPU runtime should not reserve a GPU. OpenShift AI's `default-profile`
+declares `amd.com/gpu` with `minCount: 1`, so anything referencing it takes a GPU
+whether or not it can use one. Use the built-in `cpu-only` profile for CPU runtimes,
+and apply the GPU profile if you have a working accelerator:
+
+```bash
+oc apply -f vision-ai/hardware-profiles/amd-gpu-vision.yaml
+```
+
+> If a GPU request was already injected into a stored InferenceService, changing the
+> profile will **not** remove it — `oc apply` merges maps and leaves the key in place.
+> Strip it explicitly:
+> ```bash
+> oc patch inferenceservice <name> -n john --type=json -p \
+>   '[{"op":"remove","path":"/spec/predictor/model/resources/requests/amd.com~1gpu"},
+>     {"op":"remove","path":"/spec/predictor/model/resources/limits/amd.com~1gpu"}]'
+> ```
+
+### 6. Deploy the workloads
+
+ArgoCD owns the vision stack. Point it at your fork first, then apply:
+
+```bash
+oc apply -f vision-ai/argocd/application.yaml
+```
+
+The rest apply directly:
+
+```bash
+oc apply -f litellm/                   # LiteLLM proxy + Postgres
+oc apply -f command-center/k8s/        # Web UI (RBAC, Deployment, Service, Route)
+oc apply -f llm/llamacpp/servingruntime.yaml -f llm/llamacpp/inferenceservice.yaml
+```
+
+### 7. CI/CD (optional)
+
+```bash
+oc apply -f vision-ai/pipelines/workspace-pvc.yaml
+oc apply -f vision-ai/pipelines/pipeline.yaml
+oc apply -f command-center/pipelines/pipeline.yaml
+oc apply -f vision-ai/pipelines/triggers.yaml   # EventListener + webhook Route
+```
+
+Then add the `github-webhook` route URL as a push webhook in your GitHub repo, using
+the shared secret from step 3.
+
+> `vision-ai/pipelines/triggers.yaml` declares **both** triggers on a shared
+> EventListener. Removing either one from that file deletes it from the cluster on the
+> next apply.
+
+### 8. Verify
+
+```bash
+oc get inferenceservice -n john          # all should reach READY=True
+oc get pods -n john
+oc get route command-center -n john      # open the UI
+```
+
+If an InferenceService stays `Progressing`, check whether its pod is unschedulable —
+on this cluster that is usually GPU or memory requests, not a model problem.
