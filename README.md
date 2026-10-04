@@ -2,7 +2,7 @@
 
 AI inference and tooling running on a three-node SNUC cluster under OpenShift AI.
 
-This is a homelab-scale cluster of AMD Ryzen AI mini PCs, and that shapes almost
+This is an edge cluster of AMD Ryzen AI 9 HX370 PCs, and that shapes almost
 everything in here. There are no discrete GPUs — just one Radeon 890M integrated GPU
 per node, sharing system RAM. Which accelerator backend works, how much memory a pod
 may request, and which models can be served at all are decided by that hardware, not
@@ -33,6 +33,12 @@ accelerated workloads can run at once.
 | [litellm](litellm/) | [LiteLLM](https://github.com/BerriAI/litellm) proxy + Postgres, for routing to external model providers. |
 | [command-center](command-center/) | Web UI for managing and chatting with multiple AI models from one interface. |
 | [vision-ai](vision-ai/) | Real-time object detection and instance segmentation (YOLO26) with a streaming web app. |
+
+![Command Center](images/image.png)
+
+Command Center is the front door to everything above: KServe InferenceServices and
+external providers appear side by side in one model list, with per-response latency
+stats (TTFT, token count, prompt tokens) and guardrail enforcement on blocked content.
 
 ## Architecture
 
@@ -130,13 +136,6 @@ Consequences:
 - Pair CPU-runtime models with the `cpu-only` hardware profile so they do not reserve
   a GPU they cannot use.
 
-**Hardware profiles can force a GPU request.** OpenShift AI's `default-profile`
-declares `amd.com/gpu` with `minCount: 1`, so any InferenceService referencing it
-reserves a GPU whether or not its runtime can use one. Models on a CPU runtime should
-use the `cpu-only` profile instead. Note that a GPU request already injected into a
-stored InferenceService spec will not be removed by `kubectl apply` (map keys merge);
-it has to be stripped with a JSON patch.
-
 ## Repository Layout
 
 ```
@@ -160,7 +159,7 @@ routes pushes to the right pipeline by branch.
 
 The manifests assume this cluster, so expect to adjust. You need:
 
-- OpenShift with OpenShift AI (Open Data Hub) installed
+- OpenShift with OpenShift AI 3.5 installed
 - S3-compatible object storage (e.g., OpenShift Data Foundation) for model artifacts,
   with a data connection (`odf-s3`) in your namespace
 - An accelerator, if you want one that works — on **discrete** AMD or NVIDIA GPUs the
