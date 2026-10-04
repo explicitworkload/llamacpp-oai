@@ -17,12 +17,12 @@ OpenShift 4.21 with OpenShift AI (Open Data Hub), three nodes, RHEL CoreOS 9.6.
 
 | | snuc-01 | snuc-02 | snuc-03 |
 |---|---|---|---|
-| CPU | 24 vCPU (23.5 allocatable) | 24 vCPU | 24 vCPU |
+| CPU | 24 vCPU | 24 vCPU | 24 vCPU |
 | System RAM | 62 GB allocatable | 62 GB | 46 GB |
 | GPU | Radeon 890M | Radeon 890M | Radeon 890M |
 | Dedicated VRAM | 32 GB | 32 GB | 48 GB |
 
-Every node is an AMD Ryzen AI 9 HX 370 with a Radeon 890M iGPU (gfx1150, 16 CU).
+Every node is an AMD Ryzen AI 9 HX 370 with a Radeon 890M iGPU (gfx1150).
 One GPU each, so **three GPUs total** — which is the binding constraint on how many
 accelerated workloads can run at once.
 
