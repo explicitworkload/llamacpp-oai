@@ -55,7 +55,33 @@ metadata:
 spec:
   serviceAccountName: pipeline
   triggers:
+    # vision-ai-build-template is declared on the experiment/vision-ai branch, not in
+    # this file. Both triggers share this EventListener, so dropping either one here
+    # removes it from the cluster on the next apply.
     - name: github-push
+      interceptors:
+        - ref:
+            name: github
+            kind: ClusterInterceptor
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value:
+                - push
+        - ref:
+            name: cel
+            kind: ClusterInterceptor
+          params:
+            - name: filter
+              value: body.ref == 'refs/heads/experiment/vision-ai'
+      bindings:
+        - ref: github-push-binding
+      template:
+        ref: vision-ai-build-template
+    - name: main-push
       interceptors:
         - ref:
             name: github
