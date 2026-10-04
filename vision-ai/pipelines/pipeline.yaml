@@ -7,7 +7,7 @@ spec:
   params:
     - name: git-url
       type: string
-      default: https://github.com/explicitworkload/llamacpp-oai.git
+      default: https://github.com/explicitworkload/snuc-openshift-ai.git
     - name: git-revision
       type: string
       default: main

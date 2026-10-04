@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/explicitworkload/llamacpp-oai.git
+    repoURL: https://github.com/explicitworkload/snuc-openshift-ai.git
     targetRevision: main
     path: vision-ai/k8s
   destination:

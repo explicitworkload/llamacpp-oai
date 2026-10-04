@@ -1,4 +1,4 @@
-# llamacpp-oai
+# snuc-openshift-ai
 
 A monorepo of AI inference and tooling components deployed on OpenShift AI (Open Data Hub),
 targeting an AMD Ryzen AI / Radeon iGPU cluster.
