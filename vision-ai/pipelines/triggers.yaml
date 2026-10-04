@@ -28,6 +28,9 @@ spec:
       spec:
         pipelineRef:
           name: vision-ai-yolox-build
+        timeouts:
+          pipeline: "6h"
+          tasks: "120m"
         params:
           - name: git-url
             value: $(tt.params.git-url)
