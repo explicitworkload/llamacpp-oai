@@ -74,17 +74,41 @@ currently in use — see the hardware note below.
 ## Hardware Notes
 
 The cluster runs AMD Ryzen AI 9 HX 370 nodes with Radeon 890M integrated GPUs
-(gfx1150), one GPU per node. Two constraints shape most decisions here:
+(gfx1150), one GPU per node. Two constraints shape most decisions here.
 
-**ROCm/HIP cannot allocate on these iGPUs out of the box.** The 890M carves out only
-512 MB of dedicated VRAM by default, and the HIP runtime fails with out-of-memory
-inside that limit — even at small context sizes. This is why the GGUF backends use
-Vulkan, which addresses the full shared system RAM pool instead of a dedicated
-carve-out. The same failure appears in ONNX Runtime as
-`Hip error: 'out of memory'` in hipblaslt init when using `ROCMExecutionProvider`.
-Raising the container memory limit does not help, since the ceiling is the BIOS VRAM
-allocation, not the cgroup. Increasing the iGPU VRAM reservation to 4-8 GB in BIOS is
-the documented path to making ROCm viable.
+### GPU memory per node
+
+VRAM is carved out of system RAM in BIOS, so a larger reservation directly reduces
+the memory available to pods on that node:
+
+| Node | Dedicated VRAM | GTT | Allocatable RAM |
+|---|---|---|---|
+| snuc-01 | 32 GB | 30.9 GB | 62 GB |
+| snuc-02 | 32 GB | 30.9 GB | 62 GB |
+| snuc-03 | 48 GB | 23.0 GB | 46 GB |
+
+Read from `/sys/class/drm/card0/device/mem_info_{vram,gtt}_total` on each node.
+Note snuc-03 gives up 16 GB of pod-schedulable RAM for its larger carve-out, which is
+enough to make 4 GiB requests fail to schedule there.
+
+### ROCm does not work on these iGPUs
+
+ONNX Runtime with `ROCMExecutionProvider` fails at startup with
+`Hip error: 'out of memory'` in hipblaslt init. **This is not a VRAM sizing problem.**
+It was tested directly on both a 32 GB node and the 48 GB node, at container memory
+limits from 8 GiB to 12 GiB, and fails identically every time. The AMD GPU is
+successfully allocated to the pod — the failure is inside hipblaslt on gfx1150.
+
+Consequences:
+
+- GGUF backends (llamacpp, lemonade) use **Vulkan**, which addresses shared system
+  memory and works fine.
+- ONNX vision models run on `onnxruntime-cpu`. The `onnxruntime-migraphx`
+  ServingRuntime exists but is unused; note its image ships `ROCMExecutionProvider`
+  and `CPUExecutionProvider` but **no** MIGraphX provider, so naming MIGraphX in
+  `--providers` silently falls through to CPU while still holding a GPU.
+- Pair CPU-runtime models with the `cpu-only` hardware profile so they do not reserve
+  a GPU they cannot use.
 
 **Hardware profiles can force a GPU request.** OpenShift AI's `default-profile`
 declares `amd.com/gpu` with `minCount: 1`, so any InferenceService referencing it
