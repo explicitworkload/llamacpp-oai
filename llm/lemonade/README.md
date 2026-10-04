@@ -1,6 +1,6 @@
-# llamacpp-oai
+# Lemonade on OpenShift AI
 
-> **Branch: `experiment/lemonade-rocm`** — This is an experimental branch exploring [Lemonade](https://github.com/lemonade-sdk/lemonade) as an alternative backend to llama.cpp. The `main` branch contains the original llama.cpp-based deployment.
+> Explores [Lemonade](https://github.com/lemonade-sdk/lemonade) as an alternative backend to llama.cpp. See [../llamacpp/](../llamacpp/) for the llama.cpp-based deployment.
 
 Deploy Lemonade as an OpenAI-compatible inference server on OpenShift AI using KServe.
 
@@ -100,9 +100,9 @@ The Dockerfile sets the following defaults (carried over from ROCm experimentati
 
 The entrypoint automatically registers the GGUF model under the InferenceService name (derived from the pod hostname). This allows the OpenShift AI playground and KServe clients to reference the model by InferenceService name without needing to know the GGUF filename.
 
-## Branches
+## Backends
 
-| Branch | Backend | Description |
+| Component | Backend | Description |
 |---|---|---|
-| `main` | llama.cpp (Vulkan) | Original llama.cpp deployment |
-| `experiment/lemonade-rocm` | Lemonade (Vulkan) | Lemonade-based deployment with Vulkan GPU acceleration |
+| [`llm/llamacpp`](../llamacpp/) | llama.cpp (Vulkan) | Original llama.cpp deployment |
+| [`llm/lemonade`](.) | Lemonade (Vulkan) | Lemonade-based deployment with Vulkan GPU acceleration |

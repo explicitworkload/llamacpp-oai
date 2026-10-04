@@ -10,7 +10,7 @@ spec:
       default: https://github.com/explicitworkload/llamacpp-oai.git
     - name: git-revision
       type: string
-      default: experiment/vision-ai-yolox
+      default: main
     - name: app-image
       type: string
       default: registry-quay-app.quay.svc.cluster.local/visionai/visionai-app:yolox
@@ -53,7 +53,9 @@ spec:
         - name: IMAGE
           value: $(params.app-image)
         - name: DOCKERFILE
-          value: ./app/Dockerfile
+          value: ./vision-ai/app/Dockerfile
+        - name: CONTEXT
+          value: ./vision-ai
         - name: TLS_VERIFY
           value: "false"
         - name: BUILD_EXTRA_ARGS

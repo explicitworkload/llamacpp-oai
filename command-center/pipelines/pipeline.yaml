@@ -53,9 +53,9 @@ spec:
         - name: IMAGE
           value: $(params.app-image)
         - name: DOCKERFILE
-          value: ./web/Dockerfile
+          value: ./command-center/Dockerfile
         - name: CONTEXT
-          value: ./web
+          value: ./command-center
         - name: TLS_VERIFY
           value: "false"
         - name: BUILD_EXTRA_ARGS

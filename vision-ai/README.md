@@ -118,7 +118,7 @@ Place ONNX files in your S3 bucket:
 oc apply -f argocd/application.yaml
 ```
 
-ArgoCD watches the `experiment/vision-ai-yolox` branch and auto-syncs the `k8s/` directory, deploying:
+ArgoCD watches the `main` branch and auto-syncs the `vision-ai/k8s/` directory, deploying:
 - ServingRuntimes (ROCm and CPU)
 - InferenceServices (YOLO26n detection and YOLO26n-seg segmentation)
 - Vision AI app deployment, service, and route
@@ -192,7 +192,7 @@ oc set env deployment/vision-ai-yolox UNDISTORT_K1="-0.35" -n john
 
 ### Tekton Pipeline
 
-The pipeline runs on push to `experiment/vision-ai-yolox` via GitHub webhook:
+The pipeline runs on push to `main` via GitHub webhook:
 
 1. **clone** - Clones the repository
 2. **build** - Builds container images and pushes to Quay
@@ -200,6 +200,6 @@ The pipeline runs on push to `experiment/vision-ai-yolox` via GitHub webhook:
 
 ### ArgoCD
 
-One ArgoCD Application watches the `experiment/vision-ai-yolox` branch:
+One ArgoCD Application watches the `main` branch:
 
-- `vision-ai-yolox` - syncs `k8s/` manifests (auto-sync, prune, self-heal)
+- `vision-ai-yolox` - syncs `vision-ai/k8s/` manifests (auto-sync, prune, self-heal)
