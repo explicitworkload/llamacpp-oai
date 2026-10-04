@@ -7,7 +7,7 @@ metadata:
     modelFormat: onnx
     opendatahub.io/connection-path: /models/yolo26m.onnx
     opendatahub.io/connections: models-odf-s3
-    opendatahub.io/hardware-profile-name: default-profile
+    opendatahub.io/hardware-profile-name: amd-gpu-vision
     opendatahub.io/hardware-profile-namespace: redhat-ods-applications
     opendatahub.io/model-type: object-detection
     openshift.io/display-name: "YOLO26m Detection"
@@ -31,12 +31,12 @@ spec:
       protocolVersion: v2
       resources:
         requests:
-          cpu: "4"
+          cpu: "2"
           memory: 4Gi
         limits:
-          cpu: "8"
+          cpu: "4"
           memory: 8Gi
-      runtime: onnxruntime-cpu
+      runtime: onnxruntime-migraphx
       storage:
         key: models-odf-s3
         path: /models/yolo26m.onnx

@@ -1,0 +1,35 @@
+# Applied manually, not by ArgoCD: this lives in the OpenShift AI platform
+# namespace, and the vision-ai Application syncs with prune enabled.
+#   oc apply -f vision-ai/hardware-profiles/amd-gpu-vision.yaml
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: amd-gpu-vision
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/display-name: amd-gpu-vision
+    opendatahub.io/description: >-
+      One AMD GPU plus 2 CPUs and 4 GiB of memory, for ONNX vision models on the
+      onnxruntime-migraphx runtime. Customizable up to 4 CPUs and 8 GiB.
+    opendatahub.io/disabled: "false"
+    opendatahub.io/dashboard-feature-visibility: '["model-serving"]'
+spec:
+  identifiers:
+    - identifier: cpu
+      displayName: CPU
+      resourceType: CPU
+      minCount: 1
+      defaultCount: 2
+      maxCount: "4"
+    - identifier: memory
+      displayName: Memory
+      resourceType: Memory
+      minCount: 2Gi
+      defaultCount: 4Gi
+      maxCount: 8Gi
+    - identifier: amd.com/gpu
+      displayName: AMD GPU
+      resourceType: Accelerator
+      minCount: 1
+      defaultCount: 1
+      maxCount: 1
