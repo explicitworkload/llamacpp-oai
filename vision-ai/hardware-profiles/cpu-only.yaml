@@ -1,0 +1,34 @@
+# Applied manually, not by ArgoCD: this lives in the OpenShift AI platform
+# namespace, and the vision-ai Application syncs with prune enabled.
+#   oc apply -f vision-ai/hardware-profiles/cpu-only.yaml
+#
+# Not shipped by OpenShift AI -- the only stock profile is default-profile, which
+# declares amd.com/gpu with minCount 1 and so forces every InferenceService that
+# references it to reserve a GPU. Both yolo26 InferenceServices reference this
+# profile, so it must exist before they will start.
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: cpu-only
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/display-name: cpu-only
+    opendatahub.io/description: >-
+      2 CPUs and 4 GiB of memory, no accelerator. For models on a CPU runtime,
+      so they do not reserve a GPU they cannot use.
+    opendatahub.io/disabled: "false"
+    opendatahub.io/dashboard-feature-visibility: '["workbench","model-serving"]'
+spec:
+  identifiers:
+    - identifier: cpu
+      displayName: CPU
+      resourceType: CPU
+      minCount: "2"
+      defaultCount: "2"
+      maxCount: "8"
+    - identifier: memory
+      displayName: Memory
+      resourceType: Memory
+      minCount: 2Gi
+      defaultCount: 4Gi
+      maxCount: 16Gi

@@ -135,7 +135,9 @@ Consequences:
   and `CPUExecutionProvider` but **no** MIGraphX provider, so naming MIGraphX in
   `--providers` silently falls through to CPU while still holding a GPU.
 - Pair CPU-runtime models with the `cpu-only` hardware profile so they do not reserve
-  a GPU they cannot use.
+  a GPU they cannot use. That profile is defined in
+  [vision-ai/hardware-profiles/](vision-ai/hardware-profiles/), not shipped by
+  OpenShift AI.
 
 ## Repository Layout
 
@@ -253,11 +255,13 @@ command-center images build the same way from their own component directories.
 
 Models on a CPU runtime should not reserve a GPU. OpenShift AI's `default-profile`
 declares `amd.com/gpu` with `minCount: 1`, so anything referencing it takes a GPU
-whether or not it can use one. Use the built-in `cpu-only` profile for CPU runtimes,
-and apply the GPU profile if you have a working accelerator:
+whether or not it can use one. `default-profile` is the **only** profile OpenShift AI
+ships, so both profiles below have to be created — the InferenceServices reference
+`cpu-only` by name and will not start without it:
 
 ```bash
-oc apply -f vision-ai/hardware-profiles/amd-gpu-vision.yaml
+oc apply -f vision-ai/hardware-profiles/cpu-only.yaml        # required
+oc apply -f vision-ai/hardware-profiles/amd-gpu-vision.yaml  # only if you have a usable GPU
 ```
 
 > If a GPU request was already injected into a stored InferenceService, changing the
