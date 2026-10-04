@@ -1,7 +1,28 @@
 # snuc-openshift-ai
 
-A monorepo of AI inference and tooling components deployed on OpenShift AI (Open Data Hub),
-targeting an AMD Ryzen AI / Radeon iGPU cluster.
+AI inference and tooling running on a three-node SNUC cluster under OpenShift AI.
+
+This is a homelab-scale cluster of AMD Ryzen AI mini PCs, and that shapes almost
+everything in here. There are no discrete GPUs — just one Radeon 890M integrated GPU
+per node, sharing system RAM. Which accelerator backend works, how much memory a pod
+may request, and which models can be served at all are decided by that hardware, not
+by preference. Those constraints are documented in [Hardware Notes](#hardware-notes);
+read them before adding a workload.
+
+## The Cluster
+
+OpenShift 4.21 with OpenShift AI (Open Data Hub), three nodes, RHEL CoreOS 9.6.
+
+| | snuc-01 | snuc-02 | snuc-03 |
+|---|---|---|---|
+| CPU | 24 vCPU (23.5 allocatable) | 24 vCPU | 24 vCPU |
+| System RAM | 62 GB allocatable | 62 GB | 46 GB |
+| GPU | Radeon 890M | Radeon 890M | Radeon 890M |
+| Dedicated VRAM | 32 GB | 32 GB | 48 GB |
+
+Every node is an AMD Ryzen AI 9 HX 370 with a Radeon 890M iGPU (gfx1150, 16 CU).
+One GPU each, so **three GPUs total** — which is the binding constraint on how many
+accelerated workloads can run at once.
 
 ## Components
 
@@ -73,23 +94,22 @@ currently in use — see the hardware note below.
 
 ## Hardware Notes
 
-The cluster runs AMD Ryzen AI 9 HX 370 nodes with Radeon 890M integrated GPUs
-(gfx1150), one GPU per node. Two constraints shape most decisions here.
+### VRAM is taken from system RAM
 
-### GPU memory per node
+The 890M has no memory of its own. Dedicated VRAM is carved out of system RAM in
+BIOS, so raising it directly reduces what pods can request on that node. snuc-03's
+48 GB carve-out costs it 16 GB of schedulable RAM (46 GB vs 62 GB elsewhere) — enough
+that a 4 GiB pod request no longer fits there.
 
-VRAM is carved out of system RAM in BIOS, so a larger reservation directly reduces
-the memory available to pods on that node:
+Current GTT is 30.9 GB on snuc-01/02 and 23.0 GB on snuc-03. Read these per node with:
 
-| Node | Dedicated VRAM | GTT | Allocatable RAM |
-|---|---|---|---|
-| snuc-01 | 32 GB | 30.9 GB | 62 GB |
-| snuc-02 | 32 GB | 30.9 GB | 62 GB |
-| snuc-03 | 48 GB | 23.0 GB | 46 GB |
+```bash
+cat /sys/class/drm/card0/device/mem_info_vram_total   # dedicated VRAM
+cat /sys/class/drm/card0/device/mem_info_gtt_total    # GTT (shared)
+```
 
-Read from `/sys/class/drm/card0/device/mem_info_{vram,gtt}_total` on each node.
-Note snuc-03 gives up 16 GB of pod-schedulable RAM for its larger carve-out, which is
-enough to make 4 GiB requests fail to schedule there.
+Since ROCm does not work here anyway (below), a larger VRAM reservation currently
+buys nothing and only costs schedulable RAM.
 
 ### ROCm does not work on these iGPUs
 
@@ -136,9 +156,16 @@ Tekton pipelines build each component and restart its deployment; ArgoCD syncs t
 `k8s/` manifests. A shared `github-listener` EventListener in the `visionai` namespace
 routes pushes to the right pipeline by branch.
 
-## Prerequisites
+## Reproducing Elsewhere
 
-- OpenShift cluster with OpenShift AI (Open Data Hub) installed
-- AMD GPU nodes for the inference components
-- S3-compatible object storage (e.g., OpenShift Data Foundation) for model artifacts
-- A data connection (`odf-s3`) configured in your namespace
+The manifests assume this cluster, so expect to adjust. You need:
+
+- OpenShift with OpenShift AI (Open Data Hub) installed
+- S3-compatible object storage (e.g., OpenShift Data Foundation) for model artifacts,
+  with a data connection (`odf-s3`) in your namespace
+- An accelerator, if you want one that works — on **discrete** AMD or NVIDIA GPUs the
+  ROCm limitation above does not apply, and the `onnxruntime-migraphx` runtime and
+  `amd-gpu-vision` hardware profile become usable as written
+
+Namespaces are hardcoded (`john` for workloads, `visionai` for pipelines), as are the
+Quay registry hostnames in each ServingRuntime and pipeline.
