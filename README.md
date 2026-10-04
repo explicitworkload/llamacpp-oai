@@ -2,6 +2,8 @@
 
 AI inference and tooling running on a three-node SNUC cluster under OpenShift AI.
 
+![Command Center](images/image.png)
+
 This is an edge cluster of AMD Ryzen AI 9 HX370 PCs, and that shapes almost
 everything in here. There are no discrete GPUs — just one Radeon 890M integrated GPU
 per node, sharing system RAM. Which accelerator backend works, how much memory a pod
@@ -34,11 +36,10 @@ accelerated workloads can run at once.
 | [command-center](command-center/) | Web UI for managing and chatting with multiple AI models from one interface. |
 | [vision-ai](vision-ai/) | Real-time object detection and instance segmentation (YOLO26) with a streaming web app. |
 
-![Command Center](images/image.png)
-
-Command Center is the front door to everything above: KServe InferenceServices and
-external providers appear side by side in one model list, with per-response latency
-stats (TTFT, token count, prompt tokens) and guardrail enforcement on blocked content.
+Command Center (pictured above) is the front door to all of this: KServe
+InferenceServices and external providers appear side by side in one model list, with
+per-response latency stats (TTFT, token count, prompt tokens) and guardrail
+enforcement on blocked content.
 
 ## Architecture
 

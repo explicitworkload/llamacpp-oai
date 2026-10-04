@@ -129,6 +129,9 @@ ArgoCD watches the `main` branch and auto-syncs the `vision-ai/k8s/` directory, 
 ```
 serve.py                    # KServe model server (shared by both runtimes)
 requirements.txt            # Python dependencies for visionai-app
+Dockerfile.rocm-base        # visionai:rocm-base  - ROCm + onnxruntime-rocm base layer
+Dockerfile                  # visionai:latest     - rocm-base + serve.py (GPU runtime)
+Dockerfile.cpu              # visionai:cpu        - UBI9 + onnxruntime (CPU runtime)
 app/
   Dockerfile                # App image (UBI9 + OpenCV + FastAPI)
   main.py                   # FastAPI server, RTSP/video streaming, inference threads

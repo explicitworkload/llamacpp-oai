@@ -1,0 +1,12 @@
+FROM docker.io/rocm/migraphx-ci-ubuntu:latest
+
+# Despite the MIGraphX base image, the onnxruntime-rocm wheel provides only
+# ROCMExecutionProvider and CPUExecutionProvider -- there is no MIGraphX EP here.
+# Passing --providers=MIGraphXExecutionProvider therefore falls through to CPU
+# silently. A real MIGraphX EP needs onnxruntime built from source with
+# --use_migraphx.
+RUN pip install --no-cache-dir --ignore-installed \
+        --extra-index-url https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4/ \
+        onnxruntime-rocm kserve numpy
+
+EXPOSE 8080
