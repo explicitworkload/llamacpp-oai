@@ -1,4 +1,25 @@
-Tiltfile
-scripts/
+# Editors / tooling
 .claude/
 .vscode/
+Tiltfile
+scripts/
+
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.env
+.venv/
+venv/
+
+# Model weights
+*.onnx
+*.pt
+*.pth
+weights/

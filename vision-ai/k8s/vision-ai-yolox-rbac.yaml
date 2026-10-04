@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vision-ai-isvc-access
+  namespace: john
+rules:
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vision-ai-isvc-access
+  namespace: john
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vision-ai-isvc-access
+subjects:
+  - kind: ServiceAccount
+    name: models-odf-s3-sa
+    namespace: john

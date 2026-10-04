@@ -1,0 +1,83 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: vision-ai-yolox-build
+  namespace: visionai
+spec:
+  params:
+    - name: git-url
+      type: string
+      default: https://github.com/explicitworkload/llamacpp-oai.git
+    - name: git-revision
+      type: string
+      default: experiment/vision-ai-yolox
+    - name: app-image
+      type: string
+      default: registry-quay-app.quay.svc.cluster.local/visionai/visionai-app:yolox
+  workspaces:
+    - name: source
+    - name: registry-creds
+  tasks:
+    - name: clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: URL
+          value: $(params.git-url)
+        - name: REVISION
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: source
+
+    - name: build-app
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: openshift-pipelines
+      runAfter:
+        - clone
+      params:
+        - name: IMAGE
+          value: $(params.app-image)
+        - name: DOCKERFILE
+          value: ./app/Dockerfile
+        - name: TLS_VERIFY
+          value: "false"
+        - name: BUILD_EXTRA_ARGS
+          value: "--pull=newer"
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: registry-creds
+
+    - name: restart-rollouts
+      runAfter:
+        - build-app
+      taskSpec:
+        steps:
+          - name: rollout-restart
+            image: registry.redhat.io/openshift4/ose-cli:latest
+            script: |
+              #!/usr/bin/env bash
+              set -e
+              echo "Restarting deployments in john namespace..."
+              kubectl rollout restart deployment/vision-ai-yolox -n john
+              kubectl rollout restart deployment/yolo26-predictor -n john || echo "yolo26-predictor not found, skipping"
+              echo "Waiting for rollouts to complete..."
+              kubectl rollout status deployment/vision-ai-yolox -n john --timeout=120s
+              kubectl rollout status deployment/yolo26-predictor -n john --timeout=300s || true
+              echo "Rollout restarts complete."
