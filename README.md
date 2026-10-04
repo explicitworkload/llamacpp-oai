@@ -13,7 +13,7 @@ read them before adding a workload.
 
 ## The Cluster
 
-OpenShift 4.21 with OpenShift AI (Open Data Hub), three nodes, RHEL CoreOS 9.6.
+OpenShift 4.21 with OpenShift AI 3.5, three nodes, RHEL CoreOS 9.6.
 
 | | snuc-01 | snuc-02 | snuc-03 |
 |---|---|---|---|
