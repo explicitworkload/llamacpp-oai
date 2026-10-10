@@ -1,3 +1,15 @@
+# Secrets are NOT in git. Two Secrets must exist in the litellm namespace:
+#
+#   azure-credentials      AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID,
+#                          LITELLM_MASTER_KEY
+#   litellm-proxy-secrets  UI_PASSWORD, DATABASE_URL
+#
+#   oc create secret generic litellm-proxy-secrets -n litellm \
+#     --from-literal=UI_PASSWORD='<ui password>' \
+#     --from-literal=DATABASE_URL='postgresql://litellm:<pw>@litellm-postgres:5432/litellm'
+#
+# UI_USERNAME is left inline because it is not sensitive. UI_PASSWORD overrides the
+# master-key fallback, so the admin UI password is that value -- not LITELLM_MASTER_KEY.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,20 +37,45 @@ spec:
           ports:
             - containerPort: 4000
               name: http
-          envFrom:
-            - secretRef:
-                name: azure-credentials
           env:
             - name: HOME
               value: "/tmp"
             - name: TMPDIR
               value: "/tmp"
-            - name: DATABASE_URL
-              value: "postgresql://litellm:litellm-secret-pw@litellm-postgres:5432/litellm"
-            - name: LITELLM_MASTER_KEY
-              value: "A9dsma9c213c18cNc12398n19cn"
             - name: STORE_MODEL_IN_DB
               value: "True"
+            - name: UI_USERNAME
+              value: "admin"
+            - name: UI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-proxy-secrets
+                  key: UI_PASSWORD
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-proxy-secrets
+                  key: DATABASE_URL
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: azure-credentials
+                  key: LITELLM_MASTER_KEY
+            - name: AZURE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: azure-credentials
+                  key: AZURE_CLIENT_ID
+            - name: AZURE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: azure-credentials
+                  key: AZURE_CLIENT_SECRET
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: azure-credentials
+                  key: AZURE_TENANT_ID
           volumeMounts:
             - name: config-volume
               mountPath: /app/config.yaml
